@@ -1,0 +1,99 @@
+ Recipe generation: {
+    meal_type: string,      
+    cuisine_preference: string (optional),
+    dietary_restrictions: string [ ](optional),
+    Allergens: string [ ] (optional),
+    number_of_servings: int,
+    Prep_time_minutes: int(optional), 
+    cook_time_minutes: int (optional), 
+    difficulty_level: string,   
+    Include_ingredients: string [ ]    (optional),
+    Exclude_ingredients: string [  ]  (optional),
+    keywords: string [ ]
+}
+
+This is what the AI will look for to generate recipes. 
+
+
+Recipe = {
+  title: string,        
+  description: string,   
+  "ingredients": [
+      food_item: string,   
+       value: number,     
+       unit: string       
+      ],
+  //More ingredients
+    preparation: string (optional),
+    notes: string (optional),
+  instructions: [
+      Step_number: int,  
+      description: string, 
+      duration_minutes: int, (optional)
+      equipment_needed: string [ ],
+    // more instruction steps
+  ],
+  prep_time_minutes: int, 
+  cook_time_minutes: int, 
+  total_time_minutes: int,
+  servings: int,          
+  cuisine: string,        
+  Dietary_tags: string [  ],
+  difficulty: string,      
+  image_url: string (optional),
+  nutrition_info: (optional){            
+    calories: int,
+    protein_grams: int,
+    fat_grams: int,
+   carbohydrates_grams: int,
+  }
+  Title: string,
+  description: string,
+  ingredients: [
+    {
+      food_item: string,
+       value: int,
+       unit: string
+      },
+      preparation: string,
+      notes: string
+    }
+  ],
+  instructions: [
+    {
+      step_number: int,
+      description: string,
+      duration_minutes: int,
+      Equipment_needed: string [ ]
+    }
+  ],
+  prep_time_minutes: int,
+  cook_time_minutes: int,
+  total_time_minutes: int,
+  servings: int,
+  cuisine: string,
+  Dietary_tags: string [  ],
+  difficulty: string,
+  image_url: string,
+  nutrition_info: {
+    calories: int,
+    Protein_grams : int,
+    fat_grams: int,
+    carbohydrates_grams:int
+  }
+}
+
+This is the schema that the recipes will be saved in local storage as. 
+
+
+
+pantry and shopping_list = [
+  {
+     food: string, 
+     Value: int, 
+      unit: string     
+  }
+  // ... more food items
+]
+
+This schema is how ingredients will be stored in the pantry and shopping list.
