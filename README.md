@@ -12,7 +12,7 @@ August Miller (<augustamiller77@gmail.com>)
 - Julie Truckenbrod
 - Andrew Sadler
 - Breeanna Schlicker
-- Clay Urbaniack
+- Clay Urbaniak
 - Grant Willison
 
 ## Features
