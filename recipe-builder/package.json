@@ -2,7 +2,7 @@
   "name": "recipe-builder",
   "version": "0.1.0",
   "private": true,
-  "homepage": "https://macidd.github.io/5-recipe-builder",  
+  "homepage": "https://2026-ui-sp.github.io/5-Recipe-Builder",  
   "dependencies": {
     "@openai/agents": "^0.4.7",
     "@testing-library/dom": "^10.4.1",
