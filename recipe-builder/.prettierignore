@@ -1,0 +1,20 @@
+# Dependencies
+node_modules
+
+# Production build
+build
+dist
+
+# Environment files
+.env
+.env.local
+.env.production
+
+# Misc
+coverage
+.DS_Store
+*.log
+
+# Package files
+package-lock.json
+yarn.lock
