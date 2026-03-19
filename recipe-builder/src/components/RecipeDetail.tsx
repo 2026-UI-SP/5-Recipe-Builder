@@ -148,19 +148,19 @@ export default function RecipeDetail({
               </Typography>
               <Stack direction="row" spacing={3} flexWrap="wrap" useFlexGap>
                 <Box>
-                  <Typography variant="h6">{Math.round(recipe.nutrition_info.calories * scaledServings)}</Typography>
+                  <Typography variant="h6">{Math.round(recipe.nutrition_info.calories * scaleFactor)}</Typography>
                   <Typography variant="caption" color="text.secondary">Calories</Typography>
                 </Box>
                 <Box>
-                  <Typography variant="h6">{Math.round(recipe.nutrition_info.protein_grams * scaledServings)}g</Typography>
+                  <Typography variant="h6">{Math.round(recipe.nutrition_info.protein_grams * scaleFactor)}g</Typography>
                   <Typography variant="caption" color="text.secondary">Protein</Typography>
                 </Box>
                 <Box>
-                  <Typography variant="h6">{Math.round(recipe.nutrition_info.fat_grams * scaledServings)}g</Typography>
+                  <Typography variant="h6">{Math.round(recipe.nutrition_info.fat_grams * scaleFactor)}g</Typography>
                   <Typography variant="caption" color="text.secondary">Fat</Typography>
                 </Box>
                 <Box>
-                  <Typography variant="h6">{Math.round(recipe.nutrition_info.carbohydrates_grams * scaledServings)}g</Typography>
+                  <Typography variant="h6">{Math.round(recipe.nutrition_info.carbohydrates_grams * scaleFactor)}g</Typography>
                   <Typography variant="caption" color="text.secondary">Carbs</Typography>
                 </Box>
               </Stack>

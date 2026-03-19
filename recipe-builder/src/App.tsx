@@ -71,6 +71,7 @@ function App() {
   // --- Session-only state ---
   const [tab, setTab] = useState(0);
   const [cookingRecipe, setCookingRecipe] = useState<Recipe | null>(null);
+  const [cookedRecipeIds, setCookedRecipeIds] = useState<Set<string>>(new Set());
   const [snackbar, setSnackbar] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [showKey, setShowKey] = useState(false);
@@ -203,6 +204,7 @@ function App() {
                 setPantry={setPantry}
                 onExit={() => setCookingRecipe(null)}
                 onSnackbar={setSnackbar}
+                onRecipeCooked={(id) => setCookedRecipeIds((prev) => new Set(prev).add(id))}
               />
             </Container>
           </Box>
@@ -264,6 +266,9 @@ function App() {
                 pantry={pantry}
                 setPantry={setPantry}
                 setShoppingList={setShoppingList}
+                mealPlan={mealPlan}
+                setMealPlan={setMealPlan}
+                cookedRecipeIds={cookedRecipeIds}
                 onStartCookMode={setCookingRecipe}
                 onSnackbar={setSnackbar}
                 apiKey={apiKey}

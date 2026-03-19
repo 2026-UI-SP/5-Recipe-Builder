@@ -22,7 +22,7 @@ import AddIcon from "@mui/icons-material/Add";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import MenuBookIcon from "@mui/icons-material/MenuBook";
 import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
-import { Recipe, RecipeIngredient, FoodItem } from "../data/types";
+import { Recipe, RecipeIngredient, FoodItem, MealPlan } from "../data/types";
 import { UNITS } from "../config/constants";
 import { deductIngredients, findMissingIngredients } from "../utils/helpers";
 import { generateSingleRecipe } from "../utils/openai";
@@ -35,6 +35,9 @@ interface RecipesPageProps {
   pantry: FoodItem[];
   setPantry: React.Dispatch<React.SetStateAction<FoodItem[]>>;
   setShoppingList: React.Dispatch<React.SetStateAction<FoodItem[]>>;
+  mealPlan: MealPlan;
+  setMealPlan: React.Dispatch<React.SetStateAction<MealPlan>>;
+  cookedRecipeIds: Set<string>;
   onStartCookMode: (recipe: Recipe) => void;
   onSnackbar: (message: string) => void;
   apiKey: string;
@@ -67,6 +70,9 @@ export default function RecipesPage({
   pantry,
   setPantry,
   setShoppingList,
+  mealPlan,
+  setMealPlan,
+  cookedRecipeIds,
   onStartCookMode,
   onSnackbar,
   apiKey,
@@ -106,6 +112,10 @@ export default function RecipesPage({
   };
 
   const handleIMadeThis = (recipe: Recipe) => {
+    if (cookedRecipeIds.has(recipe.id)) {
+      onSnackbar(`Ingredients for "${recipe.title}" were already deducted via Cook Mode`);
+      return;
+    }
     setPantry((prev) => deductIngredients(prev, recipe));
     onSnackbar(`Ingredients for "${recipe.title}" deducted from pantry!`);
   };
@@ -122,6 +132,18 @@ export default function RecipesPage({
 
   const handleDeleteRecipe = (id: string) => {
     setRecipes((prev) => prev.filter((r) => r.id !== id));
+    // Remove any meal plan slots that reference this recipe
+    setMealPlan((prev) => {
+      const updated: MealPlan = {};
+      for (const [day, meals] of Object.entries(prev)) {
+        const filtered: Record<string, string> = {};
+        for (const [mealType, recipeId] of Object.entries(meals)) {
+          if (recipeId !== id) filtered[mealType] = recipeId;
+        }
+        if (Object.keys(filtered).length > 0) updated[day] = filtered;
+      }
+      return updated;
+    });
     onSnackbar("Recipe deleted");
   };
 

@@ -29,6 +29,7 @@ interface CookModePageProps {
   setPantry: React.Dispatch<React.SetStateAction<FoodItem[]>>;
   onExit: () => void;
   onSnackbar: (message: string) => void;
+  onRecipeCooked: (id: string) => void;
 }
 
 export default function CookModePage({
@@ -37,6 +38,7 @@ export default function CookModePage({
   setPantry,
   onExit,
   onSnackbar,
+  onRecipeCooked,
 }: CookModePageProps) {
   const [activeStep, setActiveStep] = useState(0);
   const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
@@ -98,7 +100,8 @@ export default function CookModePage({
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
       if (wakeLockRef.current) {
-        wakeLockRef.current.release();
+        wakeLockRef.current.release().catch(() => {});
+        wakeLockRef.current = null;
       }
     };
   }, []);
@@ -163,6 +166,7 @@ export default function CookModePage({
 
   const handleFinishCooking = () => {
     setPantry((prev) => deductIngredients(prev, recipe));
+    onRecipeCooked(recipe.id);
     onSnackbar(`Finished cooking ${recipe.title}! Ingredients deducted from pantry.`);
     onExit();
   };

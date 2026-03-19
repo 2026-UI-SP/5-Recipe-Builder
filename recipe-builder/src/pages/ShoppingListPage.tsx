@@ -23,6 +23,7 @@ import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import { FoodItem } from "../data/types";
 import { UNITS } from "../config/constants";
 import { categorizeFood, CATEGORY_ORDER, CATEGORY_ICONS } from "../utils/foodCategories";
+import { normalizeUnit } from "../utils/helpers";
 
 interface ShoppingListPageProps {
   shoppingList: FoodItem[];
@@ -37,6 +38,8 @@ export default function ShoppingListPage({
   setPantry,
   onSnackbar,
 }: ShoppingListPageProps) {
+  const [search, setSearch] = useState("");
+
   // Add dialog
   const [addOpen, setAddOpen] = useState(false);
   const [addName, setAddName] = useState("");
@@ -71,7 +74,7 @@ export default function ShoppingListPage({
       const existing = prev.findIndex(
         (p) =>
           p.food.toLowerCase() === item.food.toLowerCase() &&
-          p.quantity.unit === item.quantity.unit
+          normalizeUnit(p.quantity.unit) === normalizeUnit(item.quantity.unit)
       );
       if (existing >= 0) {
         return prev.map((p, i) =>
@@ -143,13 +146,16 @@ export default function ShoppingListPage({
     onSnackbar(`All items moved to pantry`);
   };
 
-  // Group by food category
+  // Group by food category, filtered by search
   const grouped = useMemo(() => {
-    const itemsWithIndex = shoppingList.map((item, i) => ({
-      item,
-      originalIndex: i,
-      category: categorizeFood(item.food),
-    }));
+    const q = search.toLowerCase().trim();
+    const itemsWithIndex = shoppingList
+      .map((item, i) => ({
+        item,
+        originalIndex: i,
+        category: categorizeFood(item.food),
+      }))
+      .filter((entry) => !q || entry.item.food.toLowerCase().includes(q));
 
     const groups: { category: string; icon: string; items: typeof itemsWithIndex }[] = [];
     for (const category of CATEGORY_ORDER) {
@@ -163,7 +169,7 @@ export default function ShoppingListPage({
       }
     }
     return groups;
-  }, [shoppingList]);
+  }, [shoppingList, search]);
 
   return (
     <Box>
@@ -202,7 +208,8 @@ export default function ShoppingListPage({
         <TextField
           size="small"
           placeholder="Search shopping list..."
-          value=""
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
           fullWidth
           sx={{ mb: 2 }}
           slotProps={{

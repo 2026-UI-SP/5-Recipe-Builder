@@ -53,7 +53,7 @@ import NavigateBeforeIcon from "@mui/icons-material/NavigateBefore";
 import NavigateNextIcon from "@mui/icons-material/NavigateNext";
 import { Recipe, FoodItem, MealPlan } from "../data/types";
 import { generateMealPlan } from "../utils/openai";
-import { findMissingIngredients } from "../utils/helpers";
+import { findMissingIngredients, buildShoppingListFromMealPlan } from "../utils/helpers";
 
 const DAYS_OF_WEEK = [
   "Monday",
@@ -273,22 +273,7 @@ export default function DashboardPage({
 
   // --- Add all to shopping list ---
   const handleAddAllToShoppingList = () => {
-    const seen = new Set<string>();
-    const allMissing: FoodItem[] = [];
-    for (const dayMeals of Object.values(mealPlan)) {
-      for (const recipeId of Object.values(dayMeals)) {
-        const recipe = getRecipeById(recipeId);
-        if (!recipe) continue;
-        const missing = findMissingIngredients(pantry, recipe);
-        for (const item of missing) {
-          const key = `${item.food.toLowerCase()}-${item.quantity.unit}`;
-          if (!seen.has(key)) {
-            seen.add(key);
-            allMissing.push(item);
-          }
-        }
-      }
-    }
+    const allMissing = buildShoppingListFromMealPlan(mealPlan, getRecipeById, pantry);
     if (allMissing.length === 0) {
       onSnackbar("You have all the ingredients for your meal plan!");
       return;
@@ -393,6 +378,8 @@ export default function DashboardPage({
     if (!dragSource) return;
     if (dragSource.day === targetDay && dragSource.mealType === targetMealType) return;
 
+    const isSwap = !!mealPlan[targetDay]?.[targetMealType];
+
     setMealPlan((prev) => {
       const updated = { ...prev };
       const sourceRecipeId = prev[dragSource.day]?.[dragSource.mealType];
@@ -417,7 +404,7 @@ export default function DashboardPage({
       return updated;
     });
     setDragSource(null);
-    onSnackbar("Meal moved!");
+    onSnackbar(isSwap ? "Meals swapped!" : "Meal moved!");
   };
 
   // --- Shared meal slot renderer ---

@@ -57,11 +57,22 @@ Rules:
 - Only include the requested days and meal types
 - For new recipes: keep ingredients to 5-8, instructions to 3-5 steps
 - Reuse recipes (existing or new) across days when sensible
-- Valid units: pieces, cups, tbsp, tsp, oz, lbs, grams, kg, ml, liters
+- Valid units: pieces, slices, cups, tbsp, tsp, oz, lbs, grams, kg, ml, liters, loaf, head, cans, bunches, dozen, sticks
 - Valid difficulties: Easy, Medium, Hard
 - Include realistic nutrition estimates per serving
 - Every recipe MUST respect all dietary restrictions and excluded ingredients — no exceptions
-- If the user provides special instructions, treat them as top-priority requirements`;
+- If the user provides special instructions, treat them as top-priority requirements
+- IMPORTANT: Use realistic grocery-store quantities and units. Think about how people actually buy and measure ingredients:
+  - Bread: use "slices" (e.g. 2 slices), not "pieces of bread"
+  - Eggs: use "pieces" (e.g. 2 pieces eggs)
+  - Milk/liquids: use "cups" or "ml", not "pieces"
+  - Herbs: use "tbsp" or "tsp" for fresh chopped, "tsp" for dried
+  - Meat/fish: use "oz" or "lbs" (e.g. 6 oz chicken breast)
+  - Cheese: use "oz" or "cups" (shredded)
+  - Produce: use "pieces" for whole items (1 pieces onion), "cups" for chopped
+  - Canned goods: use "cans" (e.g. 1 cans diced tomatoes)
+  - Butter: use "tbsp" or "sticks"
+  - Use consistent units for the same ingredient across all recipes so quantities can be aggregated`;
 
   // Build the user message from all preferences
   const parts: string[] = [];
@@ -177,7 +188,15 @@ Rules:
   }
 
   const data = await response.json();
-  const content = JSON.parse(data.choices[0].message.content);
+  let content: any;
+  try {
+    content = JSON.parse(data.choices?.[0]?.message?.content ?? "{}");
+  } catch {
+    throw new Error("Failed to parse meal plan response from AI. Please try again.");
+  }
+  if (!content.meal_plan) {
+    throw new Error("AI returned an unexpected response format. Please try again.");
+  }
 
   // Build new recipes with generated IDs
   const newRecipes: Recipe[] = (content.new_recipes || []).map(
@@ -217,10 +236,11 @@ Return ONLY valid JSON matching this structure:
 Rules:
 - Keep ingredients to 5-12 items
 - Keep instructions to 3-8 steps
-- Valid units: pieces, cups, tbsp, tsp, oz, lbs, grams, kg, ml, liters
+- Valid units: pieces, slices, cups, tbsp, tsp, oz, lbs, grams, kg, ml, liters, loaf, head, cans, bunches, dozen, sticks
 - Valid difficulties: Easy, Medium, Hard
 - Include realistic nutrition estimates per serving
-- Be creative and detailed in the description and instructions`;
+- Be creative and detailed in the description and instructions
+- Use realistic grocery-store quantities and units (e.g. "slices" for bread, "oz" for meat, "cans" for canned goods, "cups" for liquids)`;
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 180000);
@@ -260,6 +280,14 @@ Rules:
   }
 
   const data = await response.json();
-  const recipe = JSON.parse(data.choices[0].message.content);
+  let recipe: any;
+  try {
+    recipe = JSON.parse(data.choices?.[0]?.message?.content ?? "{}");
+  } catch {
+    throw new Error("Failed to parse recipe response from AI. Please try again.");
+  }
+  if (!recipe.title) {
+    throw new Error("AI returned an unexpected response format. Please try again.");
+  }
   return recipe;
 }

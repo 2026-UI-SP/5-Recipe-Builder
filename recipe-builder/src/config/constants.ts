@@ -1,6 +1,7 @@
 /** Measurement units available in ingredient forms (pantry + shopping list). */
 export const UNITS = [
   "pieces",
+  "slices",
   "cups",
   "tbsp",
   "tsp",
@@ -11,9 +12,16 @@ export const UNITS = [
   "ml",
   "liters",
   "gallons",
-  "count",
   "loaf",
   "head",
+  "cans",
+  "bunches",
+  "dozen",
+  "sticks",
+  "cloves",
+  "bags",
+  "bottles",
+  "packages",
 ];
 
 /** Height (in px) reserved for the fixed bottom navigation bar. */

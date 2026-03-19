@@ -100,18 +100,19 @@ export default function PantryPage({ pantry, setPantry, onSnackbar }: PantryPage
     onSnackbar(`Removed ${item.food} from pantry`);
   };
 
-  // Filter by search
-  const searched = search.trim()
-    ? pantry.filter((item) =>
-        item.food.toLowerCase().includes(search.toLowerCase())
-      )
-    : pantry;
+  // Filter by search, preserving original indices
+  const searched = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return pantry
+      .map((item, i) => ({ item, realIndex: i }))
+      .filter((entry) => !q || entry.item.food.toLowerCase().includes(q));
+  }, [pantry, search]);
 
   // Build category counts and available filters
   const { filters, grouped } = useMemo(() => {
-    const itemsWithIndex = searched.map((item) => ({
+    const itemsWithIndex = searched.map(({ item, realIndex }) => ({
       item,
-      realIndex: pantry.indexOf(item),
+      realIndex,
       category: categorizeFood(item.food),
     }));
 
@@ -148,7 +149,7 @@ export default function PantryPage({ pantry, setPantry, onSnackbar }: PantryPage
     }
 
     return { filters: f, grouped: groups };
-  }, [searched, pantry]);
+  }, [searched]);
 
   const safeFilter = filters.find((f) => f.label === activeFilter) ? activeFilter : "All";
   const filteredGroups = safeFilter === "All"

@@ -10,6 +10,7 @@ interface RecipePageProps {
   recipes: Recipe[];
   setRecipes: React.Dispatch<React.SetStateAction<Recipe[]>>;
   setShoppingList: React.Dispatch<React.SetStateAction<FoodItem[]>>;
+  cookedRecipeIds: Set<string>;
   onStartCookMode: (recipe: Recipe) => void;
   onSnackbar: (message: string) => void;
 }
@@ -24,6 +25,7 @@ export default function RecipePage({
   recipes,
   setRecipes,
   setShoppingList,
+  cookedRecipeIds,
   onStartCookMode,
   onSnackbar,
 }: RecipePageProps) {
@@ -36,6 +38,10 @@ export default function RecipePage({
   };
 
   const handleIMadeThis = (recipe: Recipe) => {
+    if (cookedRecipeIds.has(recipe.id)) {
+      onSnackbar(`Ingredients for "${recipe.title}" were already deducted via Cook Mode`);
+      return;
+    }
     setPantry((prev) => deductIngredients(prev, recipe));
     onSnackbar(`Ingredients for "${recipe.title}" deducted from pantry!`);
   };
