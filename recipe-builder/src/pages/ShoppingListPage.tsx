@@ -3,17 +3,9 @@ import {
   Typography,
   Box,
   Button,
-  TextField,
-  Select,
-  MenuItem,
   Stack,
   Chip,
   Paper,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  InputAdornment,
   List,
   ListItem,
   ListItemText,
@@ -22,13 +14,12 @@ import {
   Checkbox,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
-import SearchIcon from "@mui/icons-material/Search";
-import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import { FoodItem } from "../data/types";
-import { UNITS } from "../config/constants";
 import { categorizeFood, CATEGORY_ORDER, CATEGORY_ICONS } from "../utils/foodCategories";
 import { normalizeUnit } from "../utils/helpers";
+import FoodItemDialog from "../components/FoodItemDialog";
+import EmptyState from "../components/EmptyState";
 
 interface ShoppingListPageProps {
   shoppingList: FoodItem[];
@@ -43,40 +34,43 @@ export default function ShoppingListPage({
   setPantry,
   onSnackbar,
 }: ShoppingListPageProps) {
-  const [search, setSearch] = useState("");
-
-  // Add dialog
+  // Dialog state
   const [addOpen, setAddOpen] = useState(false);
-  const [addName, setAddName] = useState("");
-  const [addAmount, setAddAmount] = useState("");
-  const [addUnit, setAddUnit] = useState("pieces");
-
-  // Edit dialog (opens on item tap)
-  const [editOpen, setEditOpen] = useState(false);
   const [editIndex, setEditIndex] = useState<number | null>(null);
-  const [editName, setEditName] = useState("");
-  const [editAmount, setEditAmount] = useState("");
-  const [editUnit, setEditUnit] = useState("pieces");
 
-  // Track checked-off items (visual only until "bought")
+  // Checked items (visual only until "bought")
   const [checkedItems, setCheckedItems] = useState<Set<number>>(new Set());
 
-  const handleAdd = () => {
-    const trimmed = addName.trim();
-    const value = parseFloat(addAmount);
-    if (!trimmed || isNaN(value) || value <= 0) return;
+  const editItem = editIndex !== null ? shoppingList[editIndex] : null;
 
-    setShoppingList((prev) => [
-      ...prev,
-      { food: trimmed, quantity: { value, unit: addUnit } },
-    ]);
-    setAddName("");
-    setAddAmount("");
-    setAddUnit("pieces");
+  // --- CRUD ---
+  const handleAdd = (name: string, amount: number, unit: string) => {
+    setShoppingList((prev) => [...prev, { food: name, quantity: { value: amount, unit } }]);
     setAddOpen(false);
-    onSnackbar(`Added ${trimmed} to shopping list`);
+    onSnackbar(`Added ${name} to shopping list`);
   };
 
+  const handleEditSave = (name: string, amount: number, unit: string) => {
+    if (editIndex === null) return;
+    setShoppingList((prev) =>
+      prev.map((item, i) =>
+        i === editIndex ? { ...item, food: name, quantity: { value: amount, unit } } : item
+      )
+    );
+    setEditIndex(null);
+    onSnackbar(`Updated ${name}`);
+  };
+
+  const handleDelete = () => {
+    if (editIndex === null) return;
+    const item = shoppingList[editIndex];
+    setShoppingList((prev) => prev.filter((_, i) => i !== editIndex));
+    setCheckedItems((prev) => { const n = new Set(prev); n.delete(editIndex); return n; });
+    setEditIndex(null);
+    onSnackbar(`Removed ${item.food} from shopping list`);
+  };
+
+  // --- Pantry integration ---
   const addItemToPantry = (item: FoodItem) => {
     setPantry((prev) => {
       const existing = prev.findIndex(
@@ -87,57 +81,12 @@ export default function ShoppingListPage({
       if (existing >= 0) {
         return prev.map((p, i) =>
           i === existing
-            ? {
-              ...p,
-              quantity: {
-                ...p.quantity,
-                value: p.quantity.value + item.quantity.value,
-              },
-            }
+            ? { ...p, quantity: { ...p.quantity, value: p.quantity.value + item.quantity.value } }
             : p
         );
       }
       return [...prev, { food: item.food, quantity: { ...item.quantity } }];
     });
-  };
-
-  const openEdit = (index: number) => {
-    const item = shoppingList[index];
-    setEditIndex(index);
-    setEditName(item.food);
-    setEditAmount(String(item.quantity.value));
-    setEditUnit(item.quantity.unit);
-    setEditOpen(true);
-  };
-
-  const closeEdit = () => {
-    setEditOpen(false);
-    setEditIndex(null);
-  };
-
-  const handleEditSave = () => {
-    const trimmed = editName.trim();
-    const value = parseFloat(editAmount);
-    if (!trimmed || isNaN(value) || value <= 0 || editIndex === null) return;
-
-    setShoppingList((prev) =>
-      prev.map((item, i) =>
-        i === editIndex
-          ? { ...item, food: trimmed, quantity: { value, unit: editUnit } }
-          : item
-      )
-    );
-    closeEdit();
-    onSnackbar(`Updated ${trimmed}`);
-  };
-
-  const handleDelete = () => {
-    if (editIndex === null) return;
-    const item = shoppingList[editIndex];
-    setShoppingList((prev) => prev.filter((_, i) => i !== editIndex));
-    setCheckedItems((prev) => { const n = new Set(prev); n.delete(editIndex); return n; });
-    closeEdit();
-    onSnackbar(`Removed ${item.food} from shopping list`);
   };
 
   const handleMarkBought = () => {
@@ -146,7 +95,7 @@ export default function ShoppingListPage({
     addItemToPantry(item);
     setShoppingList((prev) => prev.filter((_, i) => i !== editIndex));
     setCheckedItems((prev) => { const n = new Set(prev); n.delete(editIndex); return n; });
-    closeEdit();
+    setEditIndex(null);
     onSnackbar(`${item.food} moved to pantry`);
   };
 
@@ -163,7 +112,7 @@ export default function ShoppingListPage({
     shoppingList.forEach((item) => addItemToPantry(item));
     setShoppingList([]);
     setCheckedItems(new Set());
-    onSnackbar(`All items moved to pantry`);
+    onSnackbar("All items moved to pantry");
   };
 
   const markCheckedBought = () => {
@@ -176,97 +125,46 @@ export default function ShoppingListPage({
     onSnackbar(`${indices.length} item${indices.length !== 1 ? "s" : ""} moved to pantry`);
   };
 
-  // Group by food category, filtered by search
+  // --- Grouping ---
   const grouped = useMemo(() => {
-    const q = search.toLowerCase().trim();
-    const itemsWithIndex = shoppingList
-      .map((item, i) => ({
-        item,
-        originalIndex: i,
-        category: categorizeFood(item.food),
-      }))
-      .filter((entry) => !q || entry.item.food.toLowerCase().includes(q));
+    const itemsWithIndex = shoppingList.map((item, i) => ({
+      item,
+      originalIndex: i,
+      category: categorizeFood(item.food),
+    }));
 
     const groups: { category: string; icon: string; items: typeof itemsWithIndex }[] = [];
     for (const category of CATEGORY_ORDER) {
       const categoryItems = itemsWithIndex.filter((e) => e.category === category);
       if (categoryItems.length > 0) {
-        groups.push({
-          category,
-          icon: CATEGORY_ICONS[category] || "",
-          items: categoryItems,
-        });
+        groups.push({ category, icon: CATEGORY_ICONS[category] || "", items: categoryItems });
       }
     }
     return groups;
-  }, [shoppingList, search]);
+  }, [shoppingList]);
 
   const checkedCount = checkedItems.size;
 
   return (
     <Box>
-      {/* Header with add button */}
-      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 0.5 }}>
-        <Stack direction="row" alignItems="center" spacing={1}>
-          <ShoppingCartIcon color="primary" />
-          <Typography variant="h5" sx={{ fontWeight: 700 }}>
-            Grocery List
-          </Typography>
-          {shoppingList.length > 0 && (
-            <Chip
-              label={`${shoppingList.length} item${shoppingList.length !== 1 ? "s" : ""}`}
-              size="small"
-              variant="outlined"
-            />
-          )}
-        </Stack>
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          size="small"
-          onClick={() => setAddOpen(true)}
-        >
+      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+        {shoppingList.length > 0 && (
+          <Chip label={`${shoppingList.length} item${shoppingList.length !== 1 ? "s" : ""}`} size="small" variant="outlined" />
+        )}
+        <Button variant="contained" startIcon={<AddIcon />} size="small" onClick={() => setAddOpen(true)}>
           Add
         </Button>
       </Stack>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-        Items you need for your selected recipes
-      </Typography>
-
-      {/* Search */}
-      {shoppingList.length > 5 && (
-        <TextField
-          size="small"
-          placeholder="Search shopping list..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          fullWidth
-          sx={{ mb: 2 }}
-          slotProps={{
-            input: {
-              startAdornment: (
-                <InputAdornment position="start">
-                  <SearchIcon fontSize="small" />
-                </InputAdornment>
-              ),
-            },
-          }}
-        />
-      )}
 
       {shoppingList.length === 0 ? (
-        <Paper sx={{ p: 6, textAlign: "center", borderRadius: 3 }}>
-          <CheckCircleOutlineIcon sx={{ fontSize: 56, color: "success.main", mb: 1.5 }} />
-          <Typography variant="h6" color="text.secondary" gutterBottom>
-            Your shopping list is empty
-          </Typography>
-          <Typography variant="body2" color="text.disabled">
-            Add items manually or use "Shop All" from your meal plan
-          </Typography>
-        </Paper>
+        <EmptyState
+          icon={<CheckCircleOutlineIcon sx={{ color: "success.main" }} />}
+          title="Your shopping list is empty"
+          subtitle='Add items manually or use "Shop All" from your meal plan'
+        />
       ) : (
         <Box>
-          {/* Grouped list items */}
+          {/* Grouped list */}
           <Stack spacing={1}>
             {grouped.map((group) => (
               <Paper key={group.category} variant="outlined" sx={{ borderRadius: 2, overflow: "hidden" }}>
@@ -300,17 +198,16 @@ export default function ShoppingListPage({
                             onChange={() => toggleCheck(originalIndex)}
                             size="small"
                             sx={{ mr: 0.5 }}
+                            inputProps={{ "aria-label": `Mark ${item.food} as checked` } as any}
                           />
                           <ListItemText
                             primary={item.food}
-                            secondary={item.sourceRecipe ? `for ${item.sourceRecipe}` : undefined}
                             primaryTypographyProps={{
                               fontWeight: 500,
                               fontSize: "0.95rem",
                               sx: isChecked ? { textDecoration: "line-through" } : undefined,
                             }}
-                            secondaryTypographyProps={{ fontSize: "0.75rem" }}
-                            onClick={() => openEdit(originalIndex)}
+                            onClick={() => setEditIndex(originalIndex)}
                           />
                           <ListItemSecondaryAction>
                             <Chip
@@ -318,7 +215,7 @@ export default function ShoppingListPage({
                               size="small"
                               variant="outlined"
                               sx={{ fontWeight: 600, fontSize: "0.8rem" }}
-                              onClick={() => openEdit(originalIndex)}
+                              onClick={() => setEditIndex(originalIndex)}
                             />
                           </ListItemSecondaryAction>
                         </ListItem>
@@ -366,112 +263,43 @@ export default function ShoppingListPage({
         </Box>
       )}
 
-      {/* Add item dialog */}
-      <Dialog
+      {/* Add dialog */}
+      <FoodItemDialog
         open={addOpen}
         onClose={() => setAddOpen(false)}
-        fullWidth
-        maxWidth="xs"
-      >
-        <DialogTitle>Add Item</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2} sx={{ mt: 1 }}>
-            <TextField
-              label="Item"
-              fullWidth
-              value={addName}
-              onChange={(e) => setAddName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleAdd()}
-              autoFocus
-            />
-            <Stack direction="row" spacing={2}>
-              <TextField
-                label="Amount"
-                type="number"
-                value={addAmount}
-                onChange={(e) => setAddAmount(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleAdd()}
-                sx={{ flex: 1 }}
-                inputProps={{ min: 0, step: "any" }}
-              />
-              <Select
-                value={addUnit}
-                onChange={(e) => setAddUnit(e.target.value)}
-                sx={{ flex: 1 }}
-              >
-                {UNITS.map((u) => (
-                  <MenuItem key={u} value={u}>{u}</MenuItem>
-                ))}
-              </Select>
-            </Stack>
-          </Stack>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 3 }}>
-          <Button onClick={() => setAddOpen(false)}>Cancel</Button>
-          <Button variant="contained" onClick={handleAdd}>Add</Button>
-        </DialogActions>
-      </Dialog>
+        onSave={handleAdd}
+        title="Add Item"
+        nameLabel="Item"
+      />
 
-      {/* Edit item dialog */}
-      <Dialog
-        open={editOpen}
-        onClose={closeEdit}
-        fullWidth
-        maxWidth="xs"
-      >
-        <DialogTitle>Edit Item</DialogTitle>
-        <DialogContent>
-          <Stack spacing={2} sx={{ mt: 1 }}>
-            <TextField
-              label="Item"
+      {/* Edit dialog */}
+      <FoodItemDialog
+        open={editIndex !== null}
+        onClose={() => setEditIndex(null)}
+        onSave={handleEditSave}
+        title="Edit Item"
+        nameLabel="Item"
+        initialName={editItem?.food || ""}
+        initialAmount={editItem ? String(editItem.quantity.value) : ""}
+        initialUnit={editItem?.quantity.unit || "pieces"}
+        extraActions={
+          <Stack sx={{ px: 3, pb: 1 }} spacing={1.5}>
+            <Button
               fullWidth
-              value={editName}
-              onChange={(e) => setEditName(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleEditSave()}
-              autoFocus
-            />
-            <Stack direction="row" spacing={2}>
-              <TextField
-                label="Amount"
-                type="number"
-                value={editAmount}
-                onChange={(e) => setEditAmount(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleEditSave()}
-                sx={{ flex: 1 }}
-                inputProps={{ min: 0, step: "any" }}
-              />
-              <Select
-                value={editUnit}
-                onChange={(e) => setEditUnit(e.target.value)}
-                sx={{ flex: 1 }}
-              >
-                {UNITS.map((u) => (
-                  <MenuItem key={u} value={u}>{u}</MenuItem>
-                ))}
-              </Select>
+              color="success"
+              variant="outlined"
+              startIcon={<CheckCircleOutlineIcon />}
+              onClick={handleMarkBought}
+              sx={{ py: 1 }}
+            >
+              Mark Bought
+            </Button>
+            <Stack direction="row" justifyContent="flex-start">
+              <Button color="error" onClick={handleDelete}>Delete</Button>
             </Stack>
           </Stack>
-        </DialogContent>
-        <Stack sx={{ px: 3, pb: 3 }} spacing={1.5}>
-          <Button
-            fullWidth
-            color="success"
-            variant="outlined"
-            startIcon={<CheckCircleOutlineIcon />}
-            onClick={handleMarkBought}
-            sx={{ py: 1 }}
-          >
-            Mark Bought
-          </Button>
-          <Stack direction="row" justifyContent="space-between">
-            <Button color="error" onClick={handleDelete}>Delete</Button>
-            <Stack direction="row" spacing={1}>
-              <Button onClick={closeEdit}>Cancel</Button>
-              <Button variant="contained" onClick={handleEditSave}>Save</Button>
-            </Stack>
-          </Stack>
-        </Stack>
-      </Dialog>
+        }
+      />
     </Box>
   );
 }

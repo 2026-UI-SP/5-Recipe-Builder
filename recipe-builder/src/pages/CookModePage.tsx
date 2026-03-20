@@ -177,7 +177,7 @@ export default function CookModePage({
   return (
     <Box>
       <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
-        <IconButton onClick={onExit}>
+        <IconButton onClick={onExit} aria-label="Exit cook mode">
           <ArrowBackIcon />
         </IconButton>
         <Typography variant="h5" sx={{ fontWeight: 600 }}>
@@ -267,10 +267,10 @@ export default function CookModePage({
                       </Button>
                     ) : (
                       <>
-                        <IconButton onClick={toggleTimer} color="primary">
+                        <IconButton onClick={toggleTimer} color="primary" aria-label={timerRunning ? "Pause timer" : "Resume timer"}>
                           {timerRunning ? <PauseIcon /> : <PlayArrowIcon />}
                         </IconButton>
-                        <IconButton onClick={resetTimer} color="default">
+                        <IconButton onClick={resetTimer} color="default" aria-label="Reset timer">
                           <RestartAltIcon />
                         </IconButton>
                       </>

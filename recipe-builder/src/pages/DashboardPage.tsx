@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   Typography,
   Box,
@@ -12,68 +12,38 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  TextField,
-  FormControlLabel,
-  Checkbox,
-  FormGroup,
-  CircularProgress,
-  Paper,
-  Select,
-  MenuItem,
-  InputLabel,
-  FormControl,
   IconButton,
-  Divider,
-  List,
-  ListItem,
-  ListItemButton,
-  ListItemText,
-  InputAdornment,
   Tooltip,
-  Collapse,
+  alpha,
   useMediaQuery,
   useTheme,
-  alpha,
 } from "@mui/material";
 import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
-import TimerIcon from "@mui/icons-material/Timer";
-import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
-import AddIcon from "@mui/icons-material/Add";
-import CloseIcon from "@mui/icons-material/Close";
-import SearchIcon from "@mui/icons-material/Search";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import DownloadIcon from "@mui/icons-material/Download";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import ExpandLessIcon from "@mui/icons-material/ExpandLess";
-import LocalFireDepartmentIcon from "@mui/icons-material/LocalFireDepartment";
-import DragIndicatorIcon from "@mui/icons-material/DragIndicator";
 import TodayIcon from "@mui/icons-material/Today";
 import NavigateBeforeIcon from "@mui/icons-material/NavigateBefore";
 import NavigateNextIcon from "@mui/icons-material/NavigateNext";
 import { Recipe, FoodItem, MealPlan } from "../data/types";
 import { generateMealPlan } from "../utils/openai";
-import { findMissingIngredients, buildShoppingListFromMealPlan } from "../utils/helpers";
+import { buildShoppingListFromMealPlan } from "../utils/helpers";
+import MealSlot from "../components/MealSlot";
+import NutritionSummary from "../components/NutritionSummary";
+import RecipePickerDialog from "../components/RecipePickerDialog";
+import MealPlanFormDialog, { MealPlanFormState } from "../components/MealPlanFormDialog";
+import useMobileSwipe from "../hooks/useMobileSwipe";
 
-const DAYS_OF_WEEK = [
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-  "Sunday",
-];
-
+const DAYS_OF_WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const MEAL_TYPES = ["Breakfast", "Lunch", "Dinner"];
 
-const DIETARY_OPTIONS = [
-  "Vegetarian",
-  "Vegan",
-  "Gluten-Free",
-  "Dairy-Free",
-  "Low-Carb",
-  "High-Protein",
+const LOADING_MESSAGES = [
+  "Planning your meals...",
+  "Picking recipes...",
+  "Balancing nutrition...",
+  "Checking your pantry...",
+  "Creating your meal plan...",
 ];
 
 function getTodayName(): string {
@@ -94,14 +64,6 @@ interface DashboardPageProps {
   onSnackbar: (message: string) => void;
 }
 
-const LOADING_MESSAGES = [
-  "Planning your meals...",
-  "Picking recipes...",
-  "Balancing nutrition...",
-  "Checking your pantry...",
-  "Creating your meal plan...",
-];
-
 export default function DashboardPage({
   mealPlan,
   setMealPlan,
@@ -119,17 +81,50 @@ export default function DashboardPage({
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const today = getTodayName();
 
+  // --- Dialog states ---
   const [dialogOpen, setDialogOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState("");
   const [confirmOpen, setConfirmOpen] = useState(false);
 
-  // Recipe picker state
+  // --- Recipe picker ---
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerDay, setPickerDay] = useState("");
   const [pickerMealType, setPickerMealType] = useState("");
-  const [pickerSearch, setPickerSearch] = useState("");
 
+  // --- Mobile day navigation ---
+  const todayIndex = DAYS_OF_WEEK.indexOf(today);
+  const [mobileDayIndex, setMobileDayIndex] = useState(todayIndex >= 0 ? todayIndex : 0);
+  const mobileDay = DAYS_OF_WEEK[mobileDayIndex];
+  const isMobileToday = mobileDay === today;
+
+  const swipeHandlers = useMobileSwipe(
+    useCallback(() => setMobileDayIndex((i) => (i + 1) % 7), []),
+    useCallback(() => setMobileDayIndex((i) => (i + 6) % 7), [])
+  );
+
+  // --- Drag and drop ---
+  const [dragSource, setDragSource] = useState<{ day: string; mealType: string } | null>(null);
+
+  // --- Form state ---
+  const [form, setForm] = useState<MealPlanFormState>({
+    days: 7,
+    mealTypes: ["Breakfast", "Lunch", "Dinner"],
+    dietary: [],
+    cuisine: "",
+    usePantry: true,
+    servings: 4,
+    difficulty: "Any",
+    maxCookTime: "",
+    calorieTarget: "",
+    includeIngredients: "",
+    excludeIngredients: "",
+    specialInstructions: "",
+    recipeSource: "mix",
+    budget: "Any",
+  });
+
+  // --- Loading messages ---
   useEffect(() => {
     if (!loading) return;
     setLoadingMessage(LOADING_MESSAGES[0]);
@@ -141,73 +136,28 @@ export default function DashboardPage({
     return () => clearInterval(interval);
   }, [loading]);
 
-  // Mobile swipeable day view — default to today
-  const todayIndex = DAYS_OF_WEEK.indexOf(today);
-  const [mobileDayIndex, setMobileDayIndex] = useState(todayIndex >= 0 ? todayIndex : 0);
+  // --- Helpers ---
+  const getRecipeById = useCallback(
+    (id: string) => recipes.find((r) => r.id === id),
+    [recipes]
+  );
+  const hasMealPlan = Object.keys(mealPlan).length > 0;
 
-  // Touch swipe for mobile day navigation
-  const touchStartX = useRef<number | null>(null);
-  const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartX.current = e.touches[0].clientX;
-  };
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    if (touchStartX.current === null) return;
-    const dx = e.changedTouches[0].clientX - touchStartX.current;
-    const MIN_SWIPE = 50;
-    if (dx < -MIN_SWIPE) {
-      setMobileDayIndex((i) => (i + 1) % 7);
-    } else if (dx > MIN_SWIPE) {
-      setMobileDayIndex((i) => (i + 6) % 7);
-    }
-    touchStartX.current = null;
-  };
-
-  // Form state
-  const [days, setDays] = useState(7);
-  const [mealTypes, setMealTypes] = useState<string[]>([
-    "Breakfast",
-    "Lunch",
-    "Dinner",
-  ]);
-  const [dietary, setDietary] = useState<string[]>([]);
-  const [cuisine, setCuisine] = useState("");
-  const [usePantry, setUsePantry] = useState(true);
-  const [servings, setServings] = useState(4);
-  const [difficulty, setDifficulty] = useState("Any");
-  const [maxCookTime, setMaxCookTime] = useState("");
-  const [calorieTarget, setCalorieTarget] = useState("");
-  const [includeIngredients, setIncludeIngredients] = useState("");
-  const [excludeIngredients, setExcludeIngredients] = useState("");
-  const [specialInstructions, setSpecialInstructions] = useState("");
-  const [recipeSource, setRecipeSource] = useState<"new" | "existing" | "mix">("mix");
-
-  const toggleMealType = (type: string) => {
-    setMealTypes((prev) =>
-      prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]
-    );
-  };
-
-  const toggleDietary = (pref: string) => {
-    setDietary((prev) =>
-      prev.includes(pref) ? prev.filter((p) => p !== pref) : [...prev, pref]
-    );
-  };
-
+  // --- Generation ---
   const startGenerate = () => {
     if (!apiKey) {
       onSnackbar("Please set your OpenAI API key first.");
       onOpenSettings();
       return;
     }
-    if (mealTypes.length === 0) {
+    if (form.mealTypes.length === 0) {
       onSnackbar("Select at least one meal type.");
       return;
     }
-    if (recipeSource === "existing" && recipes.length === 0) {
+    if (form.recipeSource === "existing" && recipes.length === 0) {
       onSnackbar("No saved recipes to use. Try 'New only' or 'Mix' instead.");
       return;
     }
-    // If there's an existing meal plan, confirm before overwriting
     if (hasMealPlan) {
       setConfirmOpen(true);
       return;
@@ -222,30 +172,30 @@ export default function DashboardPage({
       const result = await generateMealPlan(
         apiKey,
         {
-          days,
-          mealTypes,
-          dietaryPreferences: dietary,
-          cuisinePreference: cuisine,
-          usePantryIngredients: usePantry,
-          servings,
-          difficulty,
-          maxCookTimeMinutes: maxCookTime ? parseInt(maxCookTime, 10) : null,
-          calorieTarget: calorieTarget ? parseInt(calorieTarget, 10) : null,
-          includeIngredients,
-          excludeIngredients,
-          specialInstructions,
-          recipeSource,
+          days: form.days,
+          mealTypes: form.mealTypes,
+          dietaryPreferences: form.dietary,
+          cuisinePreference: form.cuisine,
+          usePantryIngredients: form.usePantry,
+          servings: form.servings,
+          difficulty: form.difficulty,
+          maxCookTimeMinutes: form.maxCookTime ? parseInt(form.maxCookTime, 10) : null,
+          calorieTarget: form.calorieTarget ? parseInt(form.calorieTarget, 10) : null,
+          includeIngredients: form.includeIngredients,
+          excludeIngredients: form.excludeIngredients,
+          specialInstructions: form.specialInstructions,
+          recipeSource: form.recipeSource,
+          budget: form.budget,
         },
         pantry,
-        recipes
+        recipes,
+        setLoadingMessage
       );
       setRecipes((prev) => [...prev, ...result.recipes]);
       setMealPlan(result.mealPlan);
       setShoppingList([]);
       setDialogOpen(false);
-      onSnackbar(
-        `Meal plan ready! Shopping list cleared for the new plan.`
-      );
+      onSnackbar("Meal plan ready! Shopping list cleared for the new plan.");
     } catch (err: any) {
       onSnackbar(`Error: ${err.message}`);
     } finally {
@@ -253,34 +203,17 @@ export default function DashboardPage({
     }
   };
 
-  // --- Recipe actions used by meal slots ---
-
-  const handleAddToShoppingList = (recipe: Recipe) => {
-    const missing = findMissingIngredients(pantry, recipe);
-    if (missing.length === 0) {
-      onSnackbar("You have all the ingredients!");
-      return;
-    }
-    setShoppingList((prev) => [...prev, ...missing]);
-    onSnackbar(`Added ${missing.length} missing ingredient(s) to shopping list`);
-  };
-
-  const getRecipeById = (id: string) => recipes.find((r) => r.id === id);
-
+  // --- Recipe picker ---
   const openPicker = (day: string, mealType: string) => {
     setPickerDay(day);
     setPickerMealType(mealType);
-    setPickerSearch("");
     setPickerOpen(true);
   };
 
   const assignRecipe = (recipe: Recipe) => {
     setMealPlan((prev) => ({
       ...prev,
-      [pickerDay]: {
-        ...(prev[pickerDay] || {}),
-        [pickerMealType]: recipe.id,
-      },
+      [pickerDay]: { ...(prev[pickerDay] || {}), [pickerMealType]: recipe.id },
     }));
     setPickerOpen(false);
     onSnackbar(`${recipe.title} → ${pickerDay} ${pickerMealType}`);
@@ -300,9 +233,39 @@ export default function DashboardPage({
     });
   };
 
-  const hasMealPlan = Object.keys(mealPlan).length > 0;
+  // --- Drag & drop ---
+  const handleDrop = (targetDay: string, targetMealType: string) => {
+    if (!dragSource) return;
+    if (dragSource.day === targetDay && dragSource.mealType === targetMealType) return;
 
-  // --- Add all to shopping list ---
+    const isSwap = !!mealPlan[targetDay]?.[targetMealType];
+    setMealPlan((prev) => {
+      const updated = { ...prev };
+      const sourceRecipeId = prev[dragSource.day]?.[dragSource.mealType];
+      const targetRecipeId = prev[targetDay]?.[targetMealType];
+
+      if (targetRecipeId) {
+        updated[dragSource.day] = { ...(updated[dragSource.day] || {}), [dragSource.mealType]: targetRecipeId };
+      } else {
+        const sourceDayPlan = { ...(updated[dragSource.day] || {}) };
+        delete sourceDayPlan[dragSource.mealType];
+        if (Object.keys(sourceDayPlan).length === 0) {
+          delete updated[dragSource.day];
+        } else {
+          updated[dragSource.day] = sourceDayPlan;
+        }
+      }
+
+      if (sourceRecipeId) {
+        updated[targetDay] = { ...(updated[targetDay] || {}), [targetMealType]: sourceRecipeId };
+      }
+      return updated;
+    });
+    setDragSource(null);
+    onSnackbar(isSwap ? "Meals swapped!" : "Meal moved!");
+  };
+
+  // --- Shopping list ---
   const handleAddAllToShoppingList = () => {
     const allMissing = buildShoppingListFromMealPlan(mealPlan, getRecipeById, pantry);
     if (allMissing.length === 0) {
@@ -313,46 +276,7 @@ export default function DashboardPage({
     onSnackbar(`Added ${allMissing.length} missing ingredient(s) to shopping list`);
   };
 
-  // --- Nutrition summary ---
-  const [showNutrition, setShowNutrition] = useState(false);
-  const nutritionSummary = useMemo(() => {
-    const daily: Record<string, { calories: number; protein: number; fat: number; carbs: number; count: number }> = {};
-    for (const day of DAYS_OF_WEEK) {
-      daily[day] = { calories: 0, protein: 0, fat: 0, carbs: 0, count: 0 };
-      const dayMeals = mealPlan[day] || {};
-      for (const recipeId of Object.values(dayMeals)) {
-        const recipe = getRecipeById(recipeId);
-        if (recipe?.nutrition_info) {
-          daily[day].calories += recipe.nutrition_info.calories;
-          daily[day].protein += recipe.nutrition_info.protein_grams;
-          daily[day].fat += recipe.nutrition_info.fat_grams;
-          daily[day].carbs += recipe.nutrition_info.carbohydrates_grams;
-          daily[day].count += 1;
-        }
-      }
-    }
-    const activeDays = Object.values(daily).filter((d) => d.count > 0);
-    const totals = activeDays.reduce(
-      (acc, d) => ({
-        calories: acc.calories + d.calories,
-        protein: acc.protein + d.protein,
-        fat: acc.fat + d.fat,
-        carbs: acc.carbs + d.carbs,
-      }),
-      { calories: 0, protein: 0, fat: 0, carbs: 0 }
-    );
-    const avg = activeDays.length > 0
-      ? {
-        calories: Math.round(totals.calories / activeDays.length),
-        protein: Math.round(totals.protein / activeDays.length),
-        fat: Math.round(totals.fat / activeDays.length),
-        carbs: Math.round(totals.carbs / activeDays.length),
-      }
-      : { calories: 0, protein: 0, fat: 0, carbs: 0 };
-    return { daily, totals, avg, activeDays: activeDays.length };
-  }, [mealPlan, recipes]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // --- Export meal plan ---
+  // --- Export ---
   const exportMealPlanText = () => {
     const lines: string[] = ["MEAL PLAN", "=========", ""];
     for (const day of DAYS_OF_WEEK) {
@@ -369,11 +293,6 @@ export default function DashboardPage({
         }
       }
       lines.push("");
-    }
-    if (nutritionSummary.activeDays > 0) {
-      lines.push("WEEKLY TOTALS");
-      lines.push(`  Calories: ${nutritionSummary.totals.calories}  |  Avg/day: ${nutritionSummary.avg.calories}`);
-      lines.push(`  Protein: ${nutritionSummary.totals.protein}g  |  Fat: ${nutritionSummary.totals.fat}g  |  Carbs: ${nutritionSummary.totals.carbs}g`);
     }
     return lines.join("\n");
   };
@@ -398,666 +317,176 @@ export default function DashboardPage({
     onSnackbar("Meal plan downloaded!");
   };
 
-  // --- Drag and drop ---
-  const [dragSource, setDragSource] = useState<{ day: string; mealType: string } | null>(null);
-
-  const handleDragStart = (day: string, mealType: string) => {
-    setDragSource({ day, mealType });
-  };
-
-  const handleDrop = (targetDay: string, targetMealType: string) => {
-    if (!dragSource) return;
-    if (dragSource.day === targetDay && dragSource.mealType === targetMealType) return;
-
-    const isSwap = !!mealPlan[targetDay]?.[targetMealType];
-
-    setMealPlan((prev) => {
-      const updated = { ...prev };
-      const sourceRecipeId = prev[dragSource.day]?.[dragSource.mealType];
-      const targetRecipeId = prev[targetDay]?.[targetMealType];
-
-      if (targetRecipeId) {
-        updated[dragSource.day] = { ...(updated[dragSource.day] || {}), [dragSource.mealType]: targetRecipeId };
-      } else {
-        const sourceDayPlan = { ...(updated[dragSource.day] || {}) };
-        delete sourceDayPlan[dragSource.mealType];
-        if (Object.keys(sourceDayPlan).length === 0) {
-          delete updated[dragSource.day];
-        } else {
-          updated[dragSource.day] = sourceDayPlan;
-        }
-      }
-
-      if (sourceRecipeId) {
-        updated[targetDay] = { ...(updated[targetDay] || {}), [targetMealType]: sourceRecipeId };
-      }
-
-      return updated;
-    });
-    setDragSource(null);
-    onSnackbar(isSwap ? "Meals swapped!" : "Meal moved!");
-  };
-
-  // --- Shared meal slot renderer ---
-  const renderMealSlot = (day: string, mealType: string) => {
-    const dayMeals = mealPlan[day] || {};
-    const recipeId = dayMeals[mealType];
-    const recipe = recipeId ? getRecipeById(recipeId) : null;
-
-    if (recipe) {
-      return (
-        <Box
-          key={mealType}
-          draggable
-          onDragStart={() => handleDragStart(day, mealType)}
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={(e) => { e.preventDefault(); handleDrop(day, mealType); }}
-          onClick={() => onStartCookMode(recipe)}
-          sx={{
-            cursor: "pointer",
-            p: 1.5,
-            borderRadius: 2,
-            bgcolor: (t) => alpha(t.palette.primary.main, 0.04),
-            "&:hover": { bgcolor: (t) => alpha(t.palette.primary.main, 0.08) },
-            transition: "background-color 0.15s",
-            border: dragSource?.day === day && dragSource?.mealType === mealType
-              ? "2px solid"
-              : "1px solid transparent",
-            borderColor: dragSource?.day === day && dragSource?.mealType === mealType
-              ? "primary.main"
-              : "transparent",
-          }}
-        >
-          <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
-            <Stack direction="row" alignItems="center" spacing={0.5}>
-              <DragIndicatorIcon sx={{ fontSize: 16, color: "text.disabled", cursor: "grab" }} />
-              <Typography
-                variant="caption"
-                color="text.secondary"
-                sx={{ textTransform: "uppercase", fontWeight: 600, letterSpacing: 0.5, fontSize: "0.65rem" }}
-              >
-                {mealType}
-              </Typography>
-            </Stack>
-            <IconButton
-              size="small"
-              onClick={(e) => { e.stopPropagation(); removeMeal(day, mealType); }}
-              sx={{ mt: -0.5, mr: -0.5, p: 0.75 }}
-            >
-              <CloseIcon sx={{ fontSize: 18 }} />
-            </IconButton>
-          </Stack>
-          <Typography variant="body2" sx={{ fontWeight: 500, mt: 0.25 }}>
-            {recipe.title}
-          </Typography>
-          <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mt: 0.5 }}>
-            <Chip
-              icon={<TimerIcon />}
-              label={`${recipe.total_time_minutes} min`}
-              size="small"
-              variant="outlined"
-              sx={{ height: 24, fontSize: "0.7rem" }}
-            />
-            {recipe.nutrition_info && (
-              <Chip
-                label={`${recipe.nutrition_info.calories} cal`}
-                size="small"
-                variant="outlined"
-                sx={{ height: 24, fontSize: "0.7rem" }}
-              />
-            )}
-            <Box sx={{ flexGrow: 1 }} />
-            <IconButton
-              size="small"
-              onClick={(e) => { e.stopPropagation(); handleAddToShoppingList(recipe); }}
-              sx={{ p: 0.75 }}
-            >
-              <ShoppingCartIcon sx={{ fontSize: 18 }} />
-            </IconButton>
-          </Stack>
-        </Box>
-      );
-    }
-
-    // Empty slot
+  // --- Render helpers ---
+  const renderDay = (day: string) => {
+    const isToday = day === today;
     return (
-      <Box
-        key={mealType}
-        onDragOver={(e) => e.preventDefault()}
-        onDrop={(e) => { e.preventDefault(); handleDrop(day, mealType); }}
-        onClick={() => openPicker(day, mealType)}
+      <Card
         sx={{
-          p: 1.5,
-          borderRadius: 2,
-          border: "1.5px dashed",
-          borderColor: "divider",
-          cursor: "pointer",
-          "&:hover": { borderColor: "primary.main", bgcolor: "action.hover" },
-          transition: "all 0.15s",
-          display: "flex",
-          alignItems: "center",
-          gap: 1,
-          minHeight: 44,
+          height: "100%",
+          borderTop: 3,
+          borderColor: isToday ? "primary.main" : "divider",
+          bgcolor: isToday ? (t) => alpha(t.palette.primary.main, 0.03) : undefined,
+          position: "relative",
         }}
       >
-        <AddIcon sx={{ fontSize: 18, color: "text.disabled" }} />
-        <Typography variant="body2" color="text.disabled">
-          {mealType}
-        </Typography>
-      </Box>
+        <CardContent>
+          <Stack direction="row" alignItems="center" spacing={0.5} sx={{ mb: 1.5 }}>
+            {isToday && <TodayIcon color="primary" sx={{ fontSize: 18 }} />}
+            <Typography variant="h6" sx={{ fontWeight: isToday ? 700 : 600 }}>{day}</Typography>
+            {isToday && <Chip label="Today" size="small" color="primary" variant="outlined" sx={{ height: 20, fontSize: "0.65rem" }} />}
+          </Stack>
+          <Stack spacing={1}>
+            {MEAL_TYPES.map((mealType) => (
+              <MealSlot
+                key={mealType}
+                day={day}
+                mealType={mealType}
+                recipe={mealPlan[day]?.[mealType] ? getRecipeById(mealPlan[day][mealType]) || null : null}
+                isDragging={dragSource?.day === day && dragSource?.mealType === mealType}
+                onRemove={removeMeal}
+                onOpenPicker={openPicker}
+                onStartCookMode={onStartCookMode}
+                onDragStart={(d, m) => setDragSource({ day: d, mealType: m })}
+                onDrop={handleDrop}
+              />
+            ))}
+          </Stack>
+        </CardContent>
+      </Card>
     );
   };
 
-  // --- Mobile swipeable helpers ---
-  const mobileDay = DAYS_OF_WEEK[mobileDayIndex];
-  const isMobileToday = mobileDay === today;
-  const mobileDayMeals = mealPlan[mobileDay] || {};
-  const mobileMealCount = Object.keys(mobileDayMeals).length;
-
   return (
     <Box>
-      {/* ===== MEAL PLAN HEADER ===== */}
-      <Stack
-        direction="row"
-        justifyContent="space-between"
-        alignItems="center"
-        sx={{ mb: 2 }}
-      >
-        <Box>
-          <Typography variant="h5" sx={{ fontWeight: 700 }}>
-            Meal Plan
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Your weekly meal schedule
-          </Typography>
-        </Box>
-        <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
-          {hasMealPlan && (
-            <>
-              <Tooltip title="Add all missing ingredients to shopping list">
-                <IconButton onClick={handleAddAllToShoppingList} color="primary" sx={{ p: 1 }}>
-                  <ShoppingCartIcon />
-                </IconButton>
-              </Tooltip>
-              <Tooltip title="Copy to clipboard">
-                <IconButton onClick={handleCopyMealPlan} sx={{ p: 1 }}>
-                  <ContentCopyIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-              <Tooltip title="Download as text">
-                <IconButton onClick={handleDownloadMealPlan} sx={{ p: 1 }}>
-                  <DownloadIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-              <Tooltip title="Clear meal plan">
-                <IconButton
-                  color="error"
-                  onClick={() => { setMealPlan({}); onSnackbar("Meal plan cleared"); }}
-                  sx={{ p: 1 }}
-                >
-                  <DeleteOutlineIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-            </>
-          )}
-          <Button
-            variant="contained"
-            startIcon={<AutoAwesomeIcon />}
-            onClick={() => setDialogOpen(true)}
-            size={isMobile ? "small" : "medium"}
-          >
-            Generate
-          </Button>
-        </Stack>
+      {/* Action buttons */}
+      <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 1 }}>
+        <Button variant="contained" startIcon={<AutoAwesomeIcon />} onClick={() => setDialogOpen(true)} size="small" sx={{ whiteSpace: "nowrap" }}>
+          Generate
+        </Button>
+        <Box sx={{ flexGrow: 1 }} />
+        {hasMealPlan && (
+          <>
+            <Tooltip title="Add all to shopping list">
+              <IconButton size="small" onClick={handleAddAllToShoppingList} aria-label="Add all to shopping list">
+                <ShoppingCartIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Copy meal plan">
+              <IconButton size="small" onClick={handleCopyMealPlan} aria-label="Copy meal plan">
+                <ContentCopyIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Export meal plan">
+              <IconButton size="small" onClick={handleDownloadMealPlan} aria-label="Download meal plan">
+                <DownloadIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Clear meal plan">
+              <IconButton size="small" color="error" onClick={() => { setMealPlan({}); onSnackbar("Meal plan cleared"); }} aria-label="Clear meal plan">
+                <DeleteOutlineIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </>
+        )}
       </Stack>
 
-      {/* ===== MEAL PLAN: SWIPEABLE ON MOBILE, GRID ON DESKTOP ===== */}
+      {/* Meal plan display */}
       {isMobile ? (
-        // Mobile: Swipeable day view — one day at a time
-        <Box onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
-          {/* Day navigation header */}
-          <Stack
-            direction="row"
-            alignItems="center"
-            justifyContent="space-between"
-            sx={{ mb: 1.5 }}
-          >
-            <IconButton
-              onClick={() => setMobileDayIndex((i) => Math.max(0, i - 1))}
-              disabled={mobileDayIndex === 0}
-              sx={{ p: 1 }}
-            >
+        <Box onTouchStart={swipeHandlers.handleTouchStart} onTouchEnd={swipeHandlers.handleTouchEnd}>
+          {/* Day navigation */}
+          <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 0.75 }}>
+            <IconButton onClick={() => setMobileDayIndex((i) => Math.max(0, i - 1))} disabled={mobileDayIndex === 0} aria-label="Previous day" sx={{ p: 1 }}>
               <NavigateBeforeIcon />
             </IconButton>
-            <Stack alignItems="center" spacing={0.25}>
-              <Stack direction="row" alignItems="center" spacing={0.5}>
-                {isMobileToday && <TodayIcon color="primary" sx={{ fontSize: 18 }} />}
-                <Typography variant="h6" sx={{ fontWeight: isMobileToday ? 700 : 600 }}>
-                  {mobileDay}
-                </Typography>
-                {isMobileToday && (
-                  <Chip label="Today" size="small" color="primary" variant="outlined" sx={{ height: 20, fontSize: "0.65rem" }} />
-                )}
-              </Stack>
-              {mobileMealCount > 0 && (
-                <Typography variant="caption" color="text.secondary">
-                  {mobileMealCount} meal{mobileMealCount > 1 ? "s" : ""}
-                </Typography>
-              )}
+            <Stack direction="row" alignItems="center" spacing={0.5}>
+              {isMobileToday && <TodayIcon color="primary" sx={{ fontSize: 16 }} />}
+              <Typography variant="subtitle1" sx={{ fontWeight: isMobileToday ? 700 : 600 }}>{mobileDay}</Typography>
+              {isMobileToday && <Chip label="Today" size="small" color="primary" variant="outlined" sx={{ height: 18, fontSize: "0.6rem" }} />}
             </Stack>
-            <IconButton
-              onClick={() => setMobileDayIndex((i) => Math.min(6, i + 1))}
-              disabled={mobileDayIndex === 6}
-              sx={{ p: 1 }}
-            >
+            <IconButton onClick={() => setMobileDayIndex((i) => Math.min(6, i + 1))} disabled={mobileDayIndex === 6} aria-label="Next day" sx={{ p: 1 }}>
               <NavigateNextIcon />
             </IconButton>
           </Stack>
 
           {/* Dot indicators */}
-          <Stack direction="row" justifyContent="center" spacing={0.5} sx={{ mb: 2 }}>
-            {DAYS_OF_WEEK.map((day, i) => {
-              const isActive = i === mobileDayIndex;
-              const isDayToday = day === today;
-              return (
-                <Box
-                  key={day}
-                  onClick={() => setMobileDayIndex(i)}
-                  sx={{
-                    width: isActive ? 20 : 8,
-                    height: 8,
-                    borderRadius: 4,
-                    bgcolor: isActive
-                      ? "primary.main"
-                      : isDayToday
-                        ? (t) => alpha(t.palette.primary.main, 0.3)
-                        : "action.disabled",
-                    cursor: "pointer",
-                    transition: "all 0.2s",
-                  }}
-                />
-              );
-            })}
+          <Stack direction="row" justifyContent="center" spacing={0.5} sx={{ mb: 1 }}>
+            {DAYS_OF_WEEK.map((day, i) => (
+              <Box
+                key={day}
+                onClick={() => setMobileDayIndex(i)}
+                sx={{
+                  width: i === mobileDayIndex ? 20 : 8,
+                  height: 8,
+                  borderRadius: 4,
+                  bgcolor: i === mobileDayIndex
+                    ? "primary.main"
+                    : day === today
+                      ? (t) => alpha(t.palette.primary.main, 0.3)
+                      : "action.disabled",
+                  cursor: "pointer",
+                  transition: "all 0.2s",
+                }}
+              />
+            ))}
           </Stack>
 
-          {/* Day content */}
+          {/* Day card */}
           <Card
             sx={{
-              borderTop: 3,
+              borderTop: 2,
               borderColor: isMobileToday ? "primary.main" : "divider",
               bgcolor: isMobileToday ? (t) => alpha(t.palette.primary.main, 0.03) : undefined,
             }}
           >
-            <CardContent>
+            <CardContent sx={{ p: 1.5, "&:last-child": { pb: 1.5 } }}>
               <Stack spacing={1}>
-                {MEAL_TYPES.map((mealType) => renderMealSlot(mobileDay, mealType))}
+                {MEAL_TYPES.map((mealType) => (
+                  <MealSlot
+                    key={mealType}
+                    day={mobileDay}
+                    mealType={mealType}
+                    recipe={mealPlan[mobileDay]?.[mealType] ? getRecipeById(mealPlan[mobileDay][mealType]) || null : null}
+                    isDragging={dragSource?.day === mobileDay && dragSource?.mealType === mealType}
+                    onRemove={removeMeal}
+                    onOpenPicker={openPicker}
+                    onStartCookMode={onStartCookMode}
+                    onDragStart={(d, m) => setDragSource({ day: d, mealType: m })}
+                    onDrop={handleDrop}
+                  />
+                ))}
               </Stack>
             </CardContent>
           </Card>
         </Box>
       ) : (
-        // Desktop: Grid view
         <Grid container spacing={2}>
-          {DAYS_OF_WEEK.map((day) => {
-            const isToday = day === today;
-            return (
-              <Grid size={{ xs: 12, sm: 6, md: 4 }} key={day}>
-                <Card
-                  sx={{
-                    height: "100%",
-                    borderTop: 3,
-                    borderColor: isToday ? "primary.main" : "divider",
-                    bgcolor: isToday ? (t) => alpha(t.palette.primary.main, 0.03) : undefined,
-                    position: "relative",
-                  }}
-                >
-                  <CardContent>
-                    <Stack direction="row" alignItems="center" spacing={0.5} sx={{ mb: 1.5 }}>
-                      {isToday && <TodayIcon color="primary" sx={{ fontSize: 18 }} />}
-                      <Typography variant="h6" sx={{ fontWeight: isToday ? 700 : 600 }}>
-                        {day}
-                      </Typography>
-                      {isToday && (
-                        <Chip label="Today" size="small" color="primary" variant="outlined" sx={{ height: 20, fontSize: "0.65rem" }} />
-                      )}
-                    </Stack>
-                    <Stack spacing={1}>
-                      {MEAL_TYPES.map((mealType) => renderMealSlot(day, mealType))}
-                    </Stack>
-                  </CardContent>
-                </Card>
-              </Grid>
-            );
-          })}
+          {DAYS_OF_WEEK.map((day) => (
+            <Grid size={{ xs: 12, sm: 6, md: 4 }} key={day}>
+              {renderDay(day)}
+            </Grid>
+          ))}
         </Grid>
       )}
 
-      {/* ===== NUTRITION SUMMARY ===== */}
-      {hasMealPlan && nutritionSummary.activeDays > 0 && (
-        <Paper variant="outlined" sx={{ mt: 3, borderRadius: 3, overflow: "hidden" }}>
-          <Stack
-            direction="row"
-            justifyContent="space-between"
-            alignItems="center"
-            onClick={() => setShowNutrition(!showNutrition)}
-            sx={{ cursor: "pointer", p: 2 }}
-          >
-            <Stack direction="row" alignItems="center" spacing={1}>
-              <LocalFireDepartmentIcon color="primary" />
-              <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                Weekly Nutrition
-              </Typography>
-              {!showNutrition && (
-                <>
-                  <Chip
-                    label={`${nutritionSummary.totals.calories} cal`}
-                    size="small"
-                    color="primary"
-                    variant="outlined"
-                  />
-                  <Chip
-                    label={`~${nutritionSummary.avg.calories}/day`}
-                    size="small"
-                    variant="outlined"
-                    sx={{ display: { xs: "none", sm: "flex" } }}
-                  />
-                </>
-              )}
-            </Stack>
-            {showNutrition ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-          </Stack>
-          <Collapse in={showNutrition}>
-            <Box sx={{ px: 2, pb: 2 }}>
-              <Grid container spacing={1}>
-                {DAYS_OF_WEEK.map((day) => {
-                  const d = nutritionSummary.daily[day];
-                  if (d.count === 0) return null;
-                  const isToday = day === today;
-                  return (
-                    <Grid size={{ xs: 6, sm: 4, md: 3 }} key={day}>
-                      <Paper
-                        variant="outlined"
-                        sx={{
-                          p: 1.5,
-                          textAlign: "center",
-                          borderRadius: 2,
-                          border: isToday ? 2 : 1,
-                          borderColor: isToday ? "primary.main" : "divider",
-                        }}
-                      >
-                        <Typography variant="caption" sx={{ fontWeight: 600 }}>
-                          {isMobile ? day.slice(0, 3) : day}
-                        </Typography>
-                        <Typography variant="h6">{d.calories}</Typography>
-                        <Typography variant="caption" color="text.secondary">cal</Typography>
-                        <Stack direction="row" justifyContent="center" spacing={0.5} sx={{ mt: 0.5 }}>
-                          <Typography variant="caption" sx={{ fontSize: "0.65rem" }}>P:{d.protein}g</Typography>
-                          <Typography variant="caption" sx={{ fontSize: "0.65rem" }}>F:{d.fat}g</Typography>
-                          <Typography variant="caption" sx={{ fontSize: "0.65rem" }}>C:{d.carbs}g</Typography>
-                        </Stack>
-                      </Paper>
-                    </Grid>
-                  );
-                })}
-              </Grid>
-              <Divider sx={{ my: 1.5 }} />
-              <Stack
-                direction={{ xs: "column", sm: "row" }}
-                spacing={2}
-                justifyContent="center"
-                alignItems="center"
-              >
-                <Box sx={{ textAlign: "center" }}>
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>Avg/Day</Typography>
-                  <Typography variant="body2">
-                    {nutritionSummary.avg.calories} cal · {nutritionSummary.avg.protein}g P · {nutritionSummary.avg.fat}g F · {nutritionSummary.avg.carbs}g C
-                  </Typography>
-                </Box>
-                <Box sx={{ textAlign: "center" }}>
-                  <Typography variant="body2" sx={{ fontWeight: 600 }}>Week Total</Typography>
-                  <Typography variant="body2">
-                    {nutritionSummary.totals.calories} cal · {nutritionSummary.totals.protein}g P · {nutritionSummary.totals.fat}g F · {nutritionSummary.totals.carbs}g C
-                  </Typography>
-                </Box>
-              </Stack>
-            </Box>
-          </Collapse>
-        </Paper>
+      {/* Nutrition summary */}
+      {hasMealPlan && (
+        <NutritionSummary mealPlan={mealPlan} getRecipeById={getRecipeById} isMobile={isMobile} />
       )}
 
-      {/* ===== GENERATION DIALOG (bottom sheet on mobile) ===== */}
-      <Dialog
+      {/* Generation dialog */}
+      <MealPlanFormDialog
         open={dialogOpen}
-        onClose={() => !loading && setDialogOpen(false)}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>
-          Generate Meal Plan
-        </DialogTitle>
-        {loading ? (
-          <DialogContent>
-            <Box sx={{ py: 8, textAlign: "center" }}>
-              <CircularProgress size={48} sx={{ mb: 2 }} />
-              <Typography variant="h6" gutterBottom>
-                {loadingMessage}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                This may take up to a minute for a full week
-              </Typography>
-            </Box>
-          </DialogContent>
-        ) : (<>
-          <DialogContent>
-            <Stack spacing={3} sx={{ mt: 1 }}>
-              {/* --- Schedule --- */}
-              <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: -1 }}>
-                Schedule
-              </Typography>
+        onClose={() => setDialogOpen(false)}
+        loading={loading}
+        loadingMessage={loadingMessage}
+        form={form}
+        setForm={setForm}
+        pantryCount={pantry.length}
+        onGenerate={startGenerate}
+      />
 
-              <Stack direction="row" spacing={2}>
-                <FormControl size="small" sx={{ minWidth: 120 }}>
-                  <InputLabel>Days</InputLabel>
-                  <Select
-                    value={days}
-                    label="Days"
-                    onChange={(e) => setDays(Number(e.target.value))}
-                  >
-                    {[1, 2, 3, 4, 5, 6, 7].map((n) => (
-                      <MenuItem key={n} value={n}>
-                        {n} day{n > 1 ? "s" : ""}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-
-                <FormControl size="small" sx={{ minWidth: 120 }}>
-                  <InputLabel>Servings</InputLabel>
-                  <Select
-                    value={servings}
-                    label="Servings"
-                    onChange={(e) => setServings(Number(e.target.value))}
-                  >
-                    {[1, 2, 3, 4, 5, 6, 8, 10].map((n) => (
-                      <MenuItem key={n} value={n}>
-                        {n}
-                      </MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Stack>
-
-              <Box>
-                <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                  Meals per day
-                </Typography>
-                <FormGroup row>
-                  {MEAL_TYPES.map((type) => (
-                    <FormControlLabel
-                      key={type}
-                      control={
-                        <Checkbox
-                          checked={mealTypes.includes(type)}
-                          onChange={() => toggleMealType(type)}
-                        />
-                      }
-                      label={type}
-                    />
-                  ))}
-                </FormGroup>
-              </Box>
-
-              {/* --- Dietary --- */}
-              <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: -1 }}>
-                Dietary
-              </Typography>
-
-              <Box>
-                <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                  Restrictions
-                </Typography>
-                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                  {DIETARY_OPTIONS.map((option) => (
-                    <Chip
-                      key={option}
-                      label={option}
-                      clickable
-                      color={dietary.includes(option) ? "primary" : "default"}
-                      variant={dietary.includes(option) ? "filled" : "outlined"}
-                      onClick={() => toggleDietary(option)}
-                    />
-                  ))}
-                </Stack>
-              </Box>
-
-              <TextField
-                label="Calorie target per serving (optional)"
-                size="small"
-                type="number"
-                fullWidth
-                value={calorieTarget}
-                onChange={(e) => setCalorieTarget(e.target.value)}
-                placeholder="e.g., 500"
-                inputProps={{ min: 0 }}
-              />
-
-              {/* --- Preferences --- */}
-              <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: -1 }}>
-                Preferences
-              </Typography>
-
-              <FormControl size="small" fullWidth>
-                <InputLabel>Recipe Source</InputLabel>
-                <Select
-                  value={recipeSource}
-                  label="Recipe Source"
-                  onChange={(e) => setRecipeSource(e.target.value as "new" | "existing" | "mix")}
-                >
-                  <MenuItem value="mix">Mix — reuse saved + create new</MenuItem>
-                  <MenuItem value="existing">Existing only — use saved recipes</MenuItem>
-                  <MenuItem value="new">New only — create all new</MenuItem>
-                </Select>
-              </FormControl>
-
-              <Stack direction="row" spacing={2}>
-                <TextField
-                  label="Cuisine (optional)"
-                  size="small"
-                  fullWidth
-                  value={cuisine}
-                  onChange={(e) => setCuisine(e.target.value)}
-                  placeholder="e.g., Italian, Mexican..."
-                />
-                <FormControl size="small" sx={{ minWidth: 120 }}>
-                  <InputLabel>Difficulty</InputLabel>
-                  <Select
-                    value={difficulty}
-                    label="Difficulty"
-                    onChange={(e) => setDifficulty(e.target.value)}
-                  >
-                    {["Any", "Easy", "Medium", "Hard"].map((d) => (
-                      <MenuItem key={d} value={d}>{d}</MenuItem>
-                    ))}
-                  </Select>
-                </FormControl>
-              </Stack>
-
-              <TextField
-                label="Max cook time per recipe (minutes)"
-                size="small"
-                type="number"
-                fullWidth
-                value={maxCookTime}
-                onChange={(e) => setMaxCookTime(e.target.value)}
-                placeholder="e.g., 30"
-                inputProps={{ min: 0 }}
-              />
-
-              {/* --- Ingredients --- */}
-              <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: -1 }}>
-                Ingredients
-              </Typography>
-
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={usePantry}
-                    onChange={(e) => setUsePantry(e.target.checked)}
-                  />
-                }
-                label={`Prioritize pantry ingredients (${pantry.length} items)`}
-              />
-
-              <TextField
-                label="Must include (optional)"
-                size="small"
-                fullWidth
-                value={includeIngredients}
-                onChange={(e) => setIncludeIngredients(e.target.value)}
-                placeholder="e.g., chicken, rice, broccoli"
-              />
-
-              <TextField
-                label="Never use (optional)"
-                size="small"
-                fullWidth
-                value={excludeIngredients}
-                onChange={(e) => setExcludeIngredients(e.target.value)}
-                placeholder="e.g., peanuts, shellfish, cilantro"
-              />
-
-              {/* --- Special instructions --- */}
-              <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: -1 }}>
-                Special Instructions
-              </Typography>
-
-              <TextField
-                multiline
-                rows={3}
-                fullWidth
-                value={specialInstructions}
-                onChange={(e) => setSpecialInstructions(e.target.value)}
-                placeholder="e.g., meal-prep friendly weekdays, comfort food weekends, no raw fish..."
-              />
-            </Stack>
-          </DialogContent>
-          <DialogActions sx={{ px: 3, pb: 2 }}>
-            <Button onClick={() => setDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="contained"
-              onClick={startGenerate}
-              disabled={mealTypes.length === 0}
-              startIcon={<AutoAwesomeIcon />}
-            >
-              Generate
-            </Button>
-          </DialogActions>
-        </>)}
-      </Dialog>
-
-      {/* ===== CONFIRM OVERWRITE DIALOG ===== */}
+      {/* Confirm overwrite dialog */}
       <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)} maxWidth="xs">
         <DialogTitle>Replace current meal plan?</DialogTitle>
         <DialogContent>
@@ -1067,72 +496,19 @@ export default function DashboardPage({
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button onClick={() => setConfirmOpen(false)}>Cancel</Button>
-          <Button variant="contained" onClick={handleGenerate}>
-            Replace
-          </Button>
+          <Button variant="contained" onClick={handleGenerate}>Replace</Button>
         </DialogActions>
       </Dialog>
 
-      {/* ===== RECIPE PICKER DIALOG ===== */}
-      <Dialog
+      {/* Recipe picker */}
+      <RecipePickerDialog
         open={pickerOpen}
         onClose={() => setPickerOpen(false)}
-        maxWidth="xs"
-        fullWidth
-      >
-        <DialogTitle>
-          {pickerDay} — {pickerMealType}
-        </DialogTitle>
-        <DialogContent>
-          <TextField
-            size="small"
-            fullWidth
-            placeholder="Search recipes..."
-            value={pickerSearch}
-            onChange={(e) => setPickerSearch(e.target.value)}
-            sx={{ mb: 1, mt: 1 }}
-            slotProps={{
-              input: {
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchIcon fontSize="small" />
-                  </InputAdornment>
-                ),
-              },
-            }}
-          />
-          {recipes.length === 0 ? (
-            <Paper sx={{ p: 4, textAlign: "center" }}>
-              <Typography variant="body2" color="text.secondary">
-                No recipes available. Generate some first!
-              </Typography>
-            </Paper>
-          ) : (
-            <List dense sx={{ maxHeight: 350, overflow: "auto" }}>
-              {recipes
-                .filter((r) =>
-                  r.title.toLowerCase().includes(pickerSearch.toLowerCase())
-                )
-                .map((recipe) => (
-                  <ListItem key={recipe.id} disablePadding>
-                    <ListItemButton
-                      onClick={() => assignRecipe(recipe)}
-                      sx={{ borderRadius: 2, mb: 0.5 }}
-                    >
-                      <ListItemText
-                        primary={recipe.title}
-                        secondary={`${recipe.cuisine} · ${recipe.total_time_minutes} min${recipe.nutrition_info ? ` · ${recipe.nutrition_info.calories} cal` : ""}`}
-                      />
-                    </ListItemButton>
-                  </ListItem>
-                ))}
-            </List>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setPickerOpen(false)}>Cancel</Button>
-        </DialogActions>
-      </Dialog>
+        day={pickerDay}
+        mealType={pickerMealType}
+        recipes={recipes}
+        onSelect={assignRecipe}
+      />
     </Box>
   );
 }

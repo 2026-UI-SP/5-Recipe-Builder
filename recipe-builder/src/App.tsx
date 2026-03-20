@@ -232,68 +232,60 @@ function App() {
         >
           <Toolbar>
             <Typography variant="h6" sx={{ flexGrow: 1, color: "primary.main", fontWeight: 700 }}>
-              Recipe Builder
+              {["Meal Plan", "Recipes", "Pantry", "Shopping List"][tab]}
             </Typography>
-            <IconButton onClick={openSettings} sx={{ color: "text.secondary" }}>
+            <IconButton onClick={openSettings} sx={{ color: "text.secondary" }} aria-label="Settings">
               <SettingsIcon />
             </IconButton>
           </Toolbar>
         </AppBar>
 
-        <Container maxWidth="md" sx={{ py: 3, pb: 12, flexGrow: 1 }}>
-          <Fade in={tab === 0} timeout={250} unmountOnExit mountOnEnter>
-            <Box className="page-enter">
-              <DashboardPage
-                mealPlan={mealPlan}
-                setMealPlan={setMealPlan}
-                recipes={recipes}
-                setRecipes={setRecipes}
-                pantry={pantry}
-                setPantry={setPantry}
-                setShoppingList={setShoppingList}
-                apiKey={apiKey}
-                onStartCookMode={setCookingRecipe}
-                onOpenSettings={openSettings}
-                onSnackbar={setSnackbar}
-              />
-            </Box>
-          </Fade>
-          <Fade in={tab === 1} timeout={250} unmountOnExit mountOnEnter>
-            <Box className="page-enter">
-              <RecipesPage
-                recipes={recipes}
-                setRecipes={setRecipes}
-                pantry={pantry}
-                setPantry={setPantry}
-                setShoppingList={setShoppingList}
-                mealPlan={mealPlan}
-                setMealPlan={setMealPlan}
-                cookedRecipeIds={cookedRecipeIds}
-                onStartCookMode={setCookingRecipe}
-                onSnackbar={setSnackbar}
-                apiKey={apiKey}
-              />
-            </Box>
-          </Fade>
-          <Fade in={tab === 2} timeout={250} unmountOnExit mountOnEnter>
-            <Box className="page-enter">
-              <PantryPage
-                pantry={pantry}
-                setPantry={setPantry}
-                onSnackbar={setSnackbar}
-              />
-            </Box>
-          </Fade>
-          <Fade in={tab === 3} timeout={250} unmountOnExit mountOnEnter>
-            <Box className="page-enter">
-              <ShoppingListPage
-                shoppingList={shoppingList}
-                setShoppingList={setShoppingList}
-                setPantry={setPantry}
-                onSnackbar={setSnackbar}
-              />
-            </Box>
-          </Fade>
+        <Container maxWidth="md" sx={{ py: 1.5, px: { xs: 1.5, sm: 3 }, pb: 10, flexGrow: 1 }}>
+          {tab === 0 && (
+            <DashboardPage
+              mealPlan={mealPlan}
+              setMealPlan={setMealPlan}
+              recipes={recipes}
+              setRecipes={setRecipes}
+              pantry={pantry}
+              setPantry={setPantry}
+              setShoppingList={setShoppingList}
+              apiKey={apiKey}
+              onStartCookMode={setCookingRecipe}
+              onOpenSettings={openSettings}
+              onSnackbar={setSnackbar}
+            />
+          )}
+          {tab === 1 && (
+            <RecipesPage
+              recipes={recipes}
+              setRecipes={setRecipes}
+              pantry={pantry}
+              setPantry={setPantry}
+              setShoppingList={setShoppingList}
+              mealPlan={mealPlan}
+              setMealPlan={setMealPlan}
+              cookedRecipeIds={cookedRecipeIds}
+              onStartCookMode={setCookingRecipe}
+              onSnackbar={setSnackbar}
+              apiKey={apiKey}
+            />
+          )}
+          {tab === 2 && (
+            <PantryPage
+              pantry={pantry}
+              setPantry={setPantry}
+              onSnackbar={setSnackbar}
+            />
+          )}
+          {tab === 3 && (
+            <ShoppingListPage
+              shoppingList={shoppingList}
+              setShoppingList={setShoppingList}
+              setPantry={setPantry}
+              onSnackbar={setSnackbar}
+            />
+          )}
         </Container>
 
         <Paper
@@ -313,6 +305,8 @@ function App() {
             onChange={(_, v) => setTab(v)}
             showLabels
             sx={{ bgcolor: "background.paper" }}
+            component="nav"
+            aria-label="Main navigation"
           >
             <BottomNavigationAction label="Plan" icon={<CalendarMonthIcon />} />
             <BottomNavigationAction label="Recipes" icon={<MenuBookIcon />} />

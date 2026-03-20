@@ -65,13 +65,13 @@ export default function RecipeDetail({
     <Box>
       {/* Header */}
       <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
-        <IconButton onClick={onBack}>
+        <IconButton onClick={onBack} aria-label="Back to recipes">
           <ArrowBackIcon />
         </IconButton>
         <Typography variant="h5" sx={{ fontWeight: 600, flexGrow: 1 }}>
           {recipe.title}
         </Typography>
-        <IconButton onClick={() => onToggleFavorite(recipe.id)}>
+        <IconButton onClick={() => onToggleFavorite(recipe.id)} aria-label={recipe.favorite ? "Remove from favorites" : "Add to favorites"}>
           {recipe.favorite ? (
             <FavoriteIcon color="error" />
           ) : (

@@ -1,5 +1,5 @@
 import React from "react";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 // Mock useMediaQuery before importing App
@@ -11,7 +11,7 @@ jest.mock("@mui/material", () => {
   };
 });
 
-import App from "./App";
+import App from "./App"; // eslint-disable-line import/first
 
 beforeEach(() => {
   localStorage.clear();
@@ -23,9 +23,9 @@ async function goToTab(user: ReturnType<typeof userEvent.setup>, label: string) 
   await user.click(buttons[buttons.length - 1]);
 }
 
-test("renders app with Recipe Builder title", () => {
+test("renders app with Meal Plan title on default tab", () => {
   render(<App />);
-  expect(screen.getByText("Recipe Builder")).toBeInTheDocument();
+  expect(screen.getByText("Meal Plan")).toBeInTheDocument();
 });
 
 test("renders bottom navigation with three tabs", () => {
@@ -52,13 +52,13 @@ test("pantry page shows empty state initially", async () => {
 /** Helper: open the pantry Add dialog, fill it, and submit. */
 async function addPantryItem(user: ReturnType<typeof userEvent.setup>, name: string, amount: string) {
   // Click the "Add" button in the pantry header to open the dialog
-  await user.click(screen.getByRole("button", { name: /add/i }));
+  await user.click(screen.getByRole("button", { name: /^add$/i }));
   // Wait for the dialog to appear
   const ingredientField = await screen.findByLabelText("Ingredient");
   await user.type(ingredientField, name);
   await user.type(screen.getByLabelText("Amount"), amount);
   // Click the "Add" button inside the dialog
-  const buttons = screen.getAllByRole("button", { name: /add/i });
+  const buttons = screen.getAllByRole("button", { name: /^add$/i });
   await user.click(buttons[buttons.length - 1]);
   // Wait for dialog to fully close before any subsequent call
   await waitFor(() => {
@@ -82,10 +82,10 @@ test("adding ingredient with empty name does nothing", async () => {
   render(<App />);
   await goToTab(user, "Pantry");
 
-  await user.click(screen.getByRole("button", { name: /add/i }));
+  await user.click(screen.getByRole("button", { name: /^add$/i }));
   const amountField = await screen.findByLabelText("Amount");
   await user.type(amountField, "5");
-  const buttons = screen.getAllByRole("button", { name: /add/i });
+  const buttons = screen.getAllByRole("button", { name: /^add$/i });
   await user.click(buttons[buttons.length - 1]);
 
   // Dialog should still be open, pantry is still empty behind it
@@ -98,11 +98,11 @@ test("adding ingredient with zero amount does nothing", async () => {
   render(<App />);
   await goToTab(user, "Pantry");
 
-  await user.click(screen.getByRole("button", { name: /add/i }));
+  await user.click(screen.getByRole("button", { name: /^add$/i }));
   const ingredientField = await screen.findByLabelText("Ingredient");
   await user.type(ingredientField, "Rice");
   await user.type(screen.getByLabelText("Amount"), "0");
-  const buttons = screen.getAllByRole("button", { name: /add/i });
+  const buttons = screen.getAllByRole("button", { name: /^add$/i });
   await user.click(buttons[buttons.length - 1]);
 
   await user.click(screen.getByText("Cancel"));
@@ -128,7 +128,7 @@ test("can navigate to shopping list tab", async () => {
   render(<App />);
   await goToTab(user, "Shopping");
 
-  expect(screen.getByText("Grocery List")).toBeInTheDocument();
+  expect(screen.getByText("Shopping List")).toBeInTheDocument();
 });
 
 test("recipes tab shows sample recipes", async () => {
@@ -141,11 +141,9 @@ test("recipes tab shows sample recipes", async () => {
 
 /** Helper: open the shopping list Add dialog, fill it, and submit. */
 async function addShoppingItem(user: ReturnType<typeof userEvent.setup>, name: string, amount: string) {
-  // Find the Add button within the shopping list section (identified by "Grocery List")
-  const heading = screen.getByText("Grocery List");
-  const section = heading.closest(".MuiBox-root")!;
-  const addButton = within(section as HTMLElement).getByRole("button", { name: /add/i });
-  await user.click(addButton);
+  // Find the Add button on the shopping list page (may co-exist with pantry Add button)
+  const addButtons = screen.getAllByRole("button", { name: /^add$/i });
+  await user.click(addButtons[addButtons.length - 1]);
   const itemField = await screen.findByLabelText("Item");
   await user.type(itemField, name);
   await user.type(screen.getByLabelText("Amount"), amount);

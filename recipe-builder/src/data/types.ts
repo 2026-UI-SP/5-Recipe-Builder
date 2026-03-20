@@ -62,6 +62,7 @@ export interface MealPlanPreferences {
   excludeIngredients: string;
   specialInstructions: string;
   recipeSource: "new" | "existing" | "mix";
+  budget: string;
 }
 
 export interface DayPlan {
