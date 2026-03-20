@@ -14,7 +14,11 @@ import {
   DialogActions,
   InputAdornment,
   Paper,
-  alpha,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemSecondaryAction,
+  Divider,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import SearchIcon from "@mui/icons-material/Search";
@@ -223,7 +227,7 @@ export default function PantryPage({ pantry, setPantry, onSnackbar }: PantryPage
       ) : (
         <>
           {/* Category filter chips */}
-          <Stack direction="row" sx={{ flexWrap: "wrap", gap: 1, mb: 3 }}>
+          <Stack direction="row" sx={{ flexWrap: "wrap", gap: 1, mb: 2 }}>
             {filters.map((f) => {
               const isActive = f.label === safeFilter;
               return (
@@ -241,35 +245,44 @@ export default function PantryPage({ pantry, setPantry, onSnackbar }: PantryPage
           </Stack>
 
           {/* Items grouped by category */}
-          <Stack spacing={2.5}>
+          <Stack spacing={1}>
             {filteredGroups.map((group) => (
-              <Box key={group.category}>
-                {safeFilter === "All" && (
-                  <Stack direction="row" alignItems="center" spacing={0.75} sx={{ mb: 1 }}>
+              <Paper key={group.category} variant="outlined" sx={{ borderRadius: 2, overflow: "hidden" }}>
+                <Box sx={{ px: 2, py: 1.25, bgcolor: "action.hover" }}>
+                  <Stack direction="row" alignItems="center" spacing={0.75}>
                     <Typography sx={{ fontSize: "1rem" }}>{group.icon}</Typography>
-                    <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "text.secondary", fontSize: "0.8rem", textTransform: "uppercase", letterSpacing: 0.5 }}>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: "0.8rem", textTransform: "uppercase", letterSpacing: 0.5 }}>
                       {group.category}
                     </Typography>
+                    <Chip label={group.items.length} size="small" sx={{ height: 20, fontSize: "0.7rem" }} />
                   </Stack>
-                )}
-                <Stack direction="row" sx={{ flexWrap: "wrap", gap: 1 }}>
-                  {group.items.map(({ item, realIndex }) => (
-                    <Chip
-                      key={realIndex}
-                      label={`${item.food}  ·  ${item.quantity.value} ${item.quantity.unit}`}
-                      onClick={() => openEdit(realIndex)}
-                      variant="outlined"
-                      sx={{
-                        height: 36,
-                        borderRadius: 2,
-                        fontWeight: 500,
-                        fontSize: "0.8rem",
-                        "&:hover": { bgcolor: (t) => alpha(t.palette.primary.main, 0.08) },
-                      }}
-                    />
+                </Box>
+                <List disablePadding dense>
+                  {group.items.map(({ item, realIndex }, idx) => (
+                    <React.Fragment key={realIndex}>
+                      {idx > 0 && <Divider component="li" />}
+                      <ListItem
+                        sx={{ py: 1, px: 2, cursor: "pointer", "&:hover": { bgcolor: "action.hover" } }}
+                        onClick={() => openEdit(realIndex)}
+                      >
+                        <ListItemText
+                          primary={item.food}
+                          primaryTypographyProps={{ fontWeight: 500, fontSize: "0.95rem" }}
+                        />
+                        <ListItemSecondaryAction>
+                          <Chip
+                            label={`${item.quantity.value} ${item.quantity.unit}`}
+                            size="small"
+                            variant="outlined"
+                            sx={{ fontWeight: 600, fontSize: "0.8rem" }}
+                            onClick={() => openEdit(realIndex)}
+                          />
+                        </ListItemSecondaryAction>
+                      </ListItem>
+                    </React.Fragment>
                   ))}
-                </Stack>
-              </Box>
+                </List>
+              </Paper>
             ))}
           </Stack>
         </>

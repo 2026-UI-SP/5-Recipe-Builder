@@ -14,7 +14,12 @@ import {
   DialogContent,
   DialogActions,
   InputAdornment,
-  alpha,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemSecondaryAction,
+  Divider,
+  Checkbox,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import SearchIcon from "@mui/icons-material/Search";
@@ -52,6 +57,9 @@ export default function ShoppingListPage({
   const [editName, setEditName] = useState("");
   const [editAmount, setEditAmount] = useState("");
   const [editUnit, setEditUnit] = useState("pieces");
+
+  // Track checked-off items (visual only until "bought")
+  const [checkedItems, setCheckedItems] = useState<Set<number>>(new Set());
 
   const handleAdd = () => {
     const trimmed = addName.trim();
@@ -127,6 +135,7 @@ export default function ShoppingListPage({
     if (editIndex === null) return;
     const item = shoppingList[editIndex];
     setShoppingList((prev) => prev.filter((_, i) => i !== editIndex));
+    setCheckedItems((prev) => { const n = new Set(prev); n.delete(editIndex); return n; });
     closeEdit();
     onSnackbar(`Removed ${item.food} from shopping list`);
   };
@@ -136,14 +145,35 @@ export default function ShoppingListPage({
     const item = shoppingList[editIndex];
     addItemToPantry(item);
     setShoppingList((prev) => prev.filter((_, i) => i !== editIndex));
+    setCheckedItems((prev) => { const n = new Set(prev); n.delete(editIndex); return n; });
     closeEdit();
     onSnackbar(`${item.food} moved to pantry`);
+  };
+
+  const toggleCheck = (index: number) => {
+    setCheckedItems((prev) => {
+      const next = new Set(prev);
+      if (next.has(index)) next.delete(index);
+      else next.add(index);
+      return next;
+    });
   };
 
   const markAllBought = () => {
     shoppingList.forEach((item) => addItemToPantry(item));
     setShoppingList([]);
+    setCheckedItems(new Set());
     onSnackbar(`All items moved to pantry`);
+  };
+
+  const markCheckedBought = () => {
+    const indices = Array.from(checkedItems).sort((a, b) => b - a);
+    for (const idx of indices) {
+      if (shoppingList[idx]) addItemToPantry(shoppingList[idx]);
+    }
+    setShoppingList((prev) => prev.filter((_, i) => !checkedItems.has(i)));
+    setCheckedItems(new Set());
+    onSnackbar(`${indices.length} item${indices.length !== 1 ? "s" : ""} moved to pantry`);
   };
 
   // Group by food category, filtered by search
@@ -171,6 +201,8 @@ export default function ShoppingListPage({
     return groups;
   }, [shoppingList, search]);
 
+  const checkedCount = checkedItems.size;
+
   return (
     <Box>
       {/* Header with add button */}
@@ -180,6 +212,13 @@ export default function ShoppingListPage({
           <Typography variant="h5" sx={{ fontWeight: 700 }}>
             Grocery List
           </Typography>
+          {shoppingList.length > 0 && (
+            <Chip
+              label={`${shoppingList.length} item${shoppingList.length !== 1 ? "s" : ""}`}
+              size="small"
+              variant="outlined"
+            />
+          )}
         </Stack>
         <Button
           variant="contained"
@@ -190,18 +229,9 @@ export default function ShoppingListPage({
           Add
         </Button>
       </Stack>
-      <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 3 }}>
-        <Typography variant="body2" color="text.secondary">
-          Items you need for your selected recipes
-        </Typography>
-        {shoppingList.length > 0 && (
-          <Chip
-            label={`${shoppingList.length} item${shoppingList.length !== 1 ? "s" : ""}`}
-            size="small"
-            variant="outlined"
-          />
-        )}
-      </Stack>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+        Items you need for your selected recipes
+      </Typography>
 
       {/* Search */}
       {shoppingList.length > 5 && (
@@ -236,51 +266,103 @@ export default function ShoppingListPage({
         </Paper>
       ) : (
         <Box>
-          {/* Grouped chips */}
-          <Stack spacing={2.5}>
+          {/* Grouped list items */}
+          <Stack spacing={1}>
             {grouped.map((group) => (
-              <Box key={group.category}>
-                <Stack direction="row" alignItems="center" spacing={0.75} sx={{ mb: 1 }}>
-                  <Typography sx={{ fontSize: "1rem" }}>{group.icon}</Typography>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 700, color: "text.secondary", fontSize: "0.8rem", textTransform: "uppercase", letterSpacing: 0.5 }}>
-                    {group.category}
-                  </Typography>
-                </Stack>
-                <Stack direction="row" sx={{ flexWrap: "wrap", gap: 1 }}>
-                  {group.items.map(({ item, originalIndex }) => (
-                    <Chip
-                      key={originalIndex}
-                      label={
-                        item.sourceRecipe
-                          ? `${item.food}  ·  ${item.quantity.value} ${item.quantity.unit}  ·  ${item.sourceRecipe}`
-                          : `${item.food}  ·  ${item.quantity.value} ${item.quantity.unit}`
-                      }
-                      onClick={() => openEdit(originalIndex)}
-                      variant="outlined"
-                      sx={{
-                        height: 36,
-                        borderRadius: 2,
-                        fontWeight: 500,
-                        fontSize: "0.8rem",
-                        "&:hover": { bgcolor: (t) => alpha(t.palette.primary.main, 0.08) },
-                      }}
-                    />
-                  ))}
-                </Stack>
-              </Box>
+              <Paper key={group.category} variant="outlined" sx={{ borderRadius: 2, overflow: "hidden" }}>
+                <Box sx={{ px: 2, py: 1.25, bgcolor: "action.hover" }}>
+                  <Stack direction="row" alignItems="center" spacing={0.75}>
+                    <Typography sx={{ fontSize: "1rem" }}>{group.icon}</Typography>
+                    <Typography variant="subtitle2" sx={{ fontWeight: 700, fontSize: "0.8rem", textTransform: "uppercase", letterSpacing: 0.5 }}>
+                      {group.category}
+                    </Typography>
+                    <Chip label={group.items.length} size="small" sx={{ height: 20, fontSize: "0.7rem" }} />
+                  </Stack>
+                </Box>
+                <List disablePadding dense>
+                  {group.items.map(({ item, originalIndex }, idx) => {
+                    const isChecked = checkedItems.has(originalIndex);
+                    return (
+                      <React.Fragment key={originalIndex}>
+                        {idx > 0 && <Divider component="li" />}
+                        <ListItem
+                          sx={{
+                            py: 0.75,
+                            px: 1,
+                            cursor: "pointer",
+                            "&:hover": { bgcolor: "action.hover" },
+                            opacity: isChecked ? 0.5 : 1,
+                          }}
+                        >
+                          <Checkbox
+                            edge="start"
+                            checked={isChecked}
+                            onChange={() => toggleCheck(originalIndex)}
+                            size="small"
+                            sx={{ mr: 0.5 }}
+                          />
+                          <ListItemText
+                            primary={item.food}
+                            secondary={item.sourceRecipe ? `for ${item.sourceRecipe}` : undefined}
+                            primaryTypographyProps={{
+                              fontWeight: 500,
+                              fontSize: "0.95rem",
+                              sx: isChecked ? { textDecoration: "line-through" } : undefined,
+                            }}
+                            secondaryTypographyProps={{ fontSize: "0.75rem" }}
+                            onClick={() => openEdit(originalIndex)}
+                          />
+                          <ListItemSecondaryAction>
+                            <Chip
+                              label={`${item.quantity.value} ${item.quantity.unit}`}
+                              size="small"
+                              variant="outlined"
+                              sx={{ fontWeight: 600, fontSize: "0.8rem" }}
+                              onClick={() => openEdit(originalIndex)}
+                            />
+                          </ListItemSecondaryAction>
+                        </ListItem>
+                      </React.Fragment>
+                    );
+                  })}
+                </List>
+              </Paper>
             ))}
           </Stack>
 
-          {/* Bottom action */}
-          <Button
-            variant="contained"
-            fullWidth
-            onClick={markAllBought}
-            startIcon={<CheckCircleOutlineIcon />}
-            sx={{ mt: 3, py: 1.5, borderRadius: 2 }}
-          >
-            Mark All as Bought
-          </Button>
+          {/* Bottom actions */}
+          <Stack spacing={1.5} sx={{ mt: 3 }}>
+            {checkedCount > 0 && (
+              <Button
+                variant="contained"
+                color="success"
+                fullWidth
+                onClick={markCheckedBought}
+                startIcon={<CheckCircleOutlineIcon />}
+                sx={{ py: 1.5, borderRadius: 2 }}
+              >
+                Mark {checkedCount} Checked as Bought
+              </Button>
+            )}
+            <Button
+              variant={checkedCount > 0 ? "outlined" : "contained"}
+              fullWidth
+              onClick={markAllBought}
+              startIcon={<CheckCircleOutlineIcon />}
+              sx={{ py: 1.5, borderRadius: 2 }}
+            >
+              Mark All as Bought
+            </Button>
+            <Button
+              variant="text"
+              color="error"
+              fullWidth
+              onClick={() => { setShoppingList([]); setCheckedItems(new Set()); onSnackbar("Shopping list cleared"); }}
+              sx={{ py: 1 }}
+            >
+              Clear List
+            </Button>
+          </Stack>
         </Box>
       )}
 

@@ -73,7 +73,8 @@ test("can add an ingredient to pantry", async () => {
 
   await addPantryItem(user, "Chicken", "2");
 
-  expect(screen.getByText(/Chicken\s+·\s+2 pieces/)).toBeInTheDocument();
+  expect(screen.getByText("Chicken")).toBeInTheDocument();
+  expect(screen.getByText("2 pieces")).toBeInTheDocument();
 });
 
 test("adding ingredient with empty name does nothing", async () => {
@@ -116,8 +117,10 @@ test("can add multiple ingredients to pantry", async () => {
   await addPantryItem(user, "Tomato", "3");
   await addPantryItem(user, "Onion", "2");
 
-  expect(screen.getByText(/Tomato\s+·\s+3 pieces/)).toBeInTheDocument();
-  expect(screen.getByText(/Onion\s+·\s+2 pieces/)).toBeInTheDocument();
+  expect(screen.getByText("Tomato")).toBeInTheDocument();
+  expect(screen.getByText("3 pieces")).toBeInTheDocument();
+  expect(screen.getByText("Onion")).toBeInTheDocument();
+  expect(screen.getByText("2 pieces")).toBeInTheDocument();
 });
 
 test("can navigate to shopping list tab", async () => {
@@ -161,8 +164,8 @@ test("shopping list mark-bought moves item to pantry and removes from list", asy
 
   await addShoppingItem(user, "Milk", "1");
 
-  // Click the item chip to open edit dialog, then click Mark Bought
-  await user.click(screen.getByText(/Milk\s+·\s+1 pieces/));
+  // Click the quantity chip to open edit dialog, then click Mark Bought
+  await user.click(screen.getByText("1 pieces"));
   await user.click(await screen.findByText("Mark Bought"));
 
   await waitFor(() => {
@@ -170,7 +173,8 @@ test("shopping list mark-bought moves item to pantry and removes from list", asy
   });
 
   await goToTab(user, "Pantry");
-  expect(screen.getByText(/Milk\s+·\s+1 pieces/)).toBeInTheDocument();
+  expect(screen.getByText("Milk")).toBeInTheDocument();
+  expect(screen.getByText("1 pieces")).toBeInTheDocument();
 });
 
 test("shopping list mark-bought merges quantity for existing pantry item", async () => {
@@ -183,10 +187,11 @@ test("shopping list mark-bought merges quantity for existing pantry item", async
   await goToTab(user, "Shopping");
   await addShoppingItem(user, "Eggs", "6");
 
-  // Click the item chip to open edit dialog, then click Mark Bought
-  await user.click(screen.getByText(/Eggs\s+·\s+6 pieces/));
+  // Click the quantity chip to open edit dialog, then click Mark Bought
+  await user.click(screen.getByText("6 pieces"));
   await user.click(await screen.findByText("Mark Bought"));
 
   await goToTab(user, "Pantry");
-  expect(screen.getByText(/Eggs\s+·\s+12 pieces/)).toBeInTheDocument();
+  expect(screen.getByText("Eggs")).toBeInTheDocument();
+  expect(screen.getByText("12 pieces")).toBeInTheDocument();
 }, 15000);

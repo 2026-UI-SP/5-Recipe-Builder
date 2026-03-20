@@ -94,6 +94,14 @@ interface DashboardPageProps {
   onSnackbar: (message: string) => void;
 }
 
+const LOADING_MESSAGES = [
+  "Planning your meals...",
+  "Picking recipes...",
+  "Balancing nutrition...",
+  "Checking your pantry...",
+  "Creating your meal plan...",
+];
+
 export default function DashboardPage({
   mealPlan,
   setMealPlan,
@@ -122,15 +130,6 @@ export default function DashboardPage({
   const [pickerMealType, setPickerMealType] = useState("");
   const [pickerSearch, setPickerSearch] = useState("");
 
-  // Rotating loading messages
-  const LOADING_MESSAGES = [
-    "Planning your meals...",
-    "Picking recipes...",
-    "Balancing nutrition...",
-    "Checking your pantry...",
-    "Creating your meal plan...",
-    "Almost done...",
-  ];
   useEffect(() => {
     if (!loading) return;
     setLoadingMessage(LOADING_MESSAGES[0]);
@@ -344,11 +343,11 @@ export default function DashboardPage({
     );
     const avg = activeDays.length > 0
       ? {
-          calories: Math.round(totals.calories / activeDays.length),
-          protein: Math.round(totals.protein / activeDays.length),
-          fat: Math.round(totals.fat / activeDays.length),
-          carbs: Math.round(totals.carbs / activeDays.length),
-        }
+        calories: Math.round(totals.calories / activeDays.length),
+        protein: Math.round(totals.protein / activeDays.length),
+        fat: Math.round(totals.fat / activeDays.length),
+        carbs: Math.round(totals.carbs / activeDays.length),
+      }
       : { calories: 0, protein: 0, fat: 0, carbs: 0 };
     return { daily, totals, avg, activeDays: activeDays.length };
   }, [mealPlan, recipes]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -849,212 +848,212 @@ export default function DashboardPage({
             </Box>
           </DialogContent>
         ) : (<>
-        <DialogContent>
-          <Stack spacing={3} sx={{ mt: 1 }}>
-            {/* --- Schedule --- */}
-            <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: -1 }}>
-              Schedule
-            </Typography>
-
-            <Stack direction="row" spacing={2}>
-              <FormControl size="small" sx={{ minWidth: 120 }}>
-                <InputLabel>Days</InputLabel>
-                <Select
-                  value={days}
-                  label="Days"
-                  onChange={(e) => setDays(Number(e.target.value))}
-                >
-                  {[1, 2, 3, 4, 5, 6, 7].map((n) => (
-                    <MenuItem key={n} value={n}>
-                      {n} day{n > 1 ? "s" : ""}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-
-              <FormControl size="small" sx={{ minWidth: 120 }}>
-                <InputLabel>Servings</InputLabel>
-                <Select
-                  value={servings}
-                  label="Servings"
-                  onChange={(e) => setServings(Number(e.target.value))}
-                >
-                  {[1, 2, 3, 4, 5, 6, 8, 10].map((n) => (
-                    <MenuItem key={n} value={n}>
-                      {n}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Stack>
-
-            <Box>
-              <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                Meals per day
+          <DialogContent>
+            <Stack spacing={3} sx={{ mt: 1 }}>
+              {/* --- Schedule --- */}
+              <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: -1 }}>
+                Schedule
               </Typography>
-              <FormGroup row>
-                {MEAL_TYPES.map((type) => (
-                  <FormControlLabel
-                    key={type}
-                    control={
-                      <Checkbox
-                        checked={mealTypes.includes(type)}
-                        onChange={() => toggleMealType(type)}
-                      />
-                    }
-                    label={type}
-                  />
-                ))}
-              </FormGroup>
-            </Box>
 
-            {/* --- Dietary --- */}
-            <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: -1 }}>
-              Dietary
-            </Typography>
+              <Stack direction="row" spacing={2}>
+                <FormControl size="small" sx={{ minWidth: 120 }}>
+                  <InputLabel>Days</InputLabel>
+                  <Select
+                    value={days}
+                    label="Days"
+                    onChange={(e) => setDays(Number(e.target.value))}
+                  >
+                    {[1, 2, 3, 4, 5, 6, 7].map((n) => (
+                      <MenuItem key={n} value={n}>
+                        {n} day{n > 1 ? "s" : ""}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
 
-            <Box>
-              <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                Restrictions
-              </Typography>
-              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                {DIETARY_OPTIONS.map((option) => (
-                  <Chip
-                    key={option}
-                    label={option}
-                    clickable
-                    color={dietary.includes(option) ? "primary" : "default"}
-                    variant={dietary.includes(option) ? "filled" : "outlined"}
-                    onClick={() => toggleDietary(option)}
-                  />
-                ))}
+                <FormControl size="small" sx={{ minWidth: 120 }}>
+                  <InputLabel>Servings</InputLabel>
+                  <Select
+                    value={servings}
+                    label="Servings"
+                    onChange={(e) => setServings(Number(e.target.value))}
+                  >
+                    {[1, 2, 3, 4, 5, 6, 8, 10].map((n) => (
+                      <MenuItem key={n} value={n}>
+                        {n}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
               </Stack>
-            </Box>
 
-            <TextField
-              label="Calorie target per serving (optional)"
-              size="small"
-              type="number"
-              fullWidth
-              value={calorieTarget}
-              onChange={(e) => setCalorieTarget(e.target.value)}
-              placeholder="e.g., 500"
-              inputProps={{ min: 0 }}
-            />
+              <Box>
+                <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                  Meals per day
+                </Typography>
+                <FormGroup row>
+                  {MEAL_TYPES.map((type) => (
+                    <FormControlLabel
+                      key={type}
+                      control={
+                        <Checkbox
+                          checked={mealTypes.includes(type)}
+                          onChange={() => toggleMealType(type)}
+                        />
+                      }
+                      label={type}
+                    />
+                  ))}
+                </FormGroup>
+              </Box>
 
-            {/* --- Preferences --- */}
-            <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: -1 }}>
-              Preferences
-            </Typography>
+              {/* --- Dietary --- */}
+              <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: -1 }}>
+                Dietary
+              </Typography>
 
-            <FormControl size="small" fullWidth>
-              <InputLabel>Recipe Source</InputLabel>
-              <Select
-                value={recipeSource}
-                label="Recipe Source"
-                onChange={(e) => setRecipeSource(e.target.value as "new" | "existing" | "mix")}
-              >
-                <MenuItem value="mix">Mix — reuse saved + create new</MenuItem>
-                <MenuItem value="existing">Existing only — use saved recipes</MenuItem>
-                <MenuItem value="new">New only — create all new</MenuItem>
-              </Select>
-            </FormControl>
+              <Box>
+                <Typography variant="subtitle2" sx={{ mb: 1 }}>
+                  Restrictions
+                </Typography>
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                  {DIETARY_OPTIONS.map((option) => (
+                    <Chip
+                      key={option}
+                      label={option}
+                      clickable
+                      color={dietary.includes(option) ? "primary" : "default"}
+                      variant={dietary.includes(option) ? "filled" : "outlined"}
+                      onClick={() => toggleDietary(option)}
+                    />
+                  ))}
+                </Stack>
+              </Box>
 
-            <Stack direction="row" spacing={2}>
               <TextField
-                label="Cuisine (optional)"
+                label="Calorie target per serving (optional)"
+                size="small"
+                type="number"
+                fullWidth
+                value={calorieTarget}
+                onChange={(e) => setCalorieTarget(e.target.value)}
+                placeholder="e.g., 500"
+                inputProps={{ min: 0 }}
+              />
+
+              {/* --- Preferences --- */}
+              <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: -1 }}>
+                Preferences
+              </Typography>
+
+              <FormControl size="small" fullWidth>
+                <InputLabel>Recipe Source</InputLabel>
+                <Select
+                  value={recipeSource}
+                  label="Recipe Source"
+                  onChange={(e) => setRecipeSource(e.target.value as "new" | "existing" | "mix")}
+                >
+                  <MenuItem value="mix">Mix — reuse saved + create new</MenuItem>
+                  <MenuItem value="existing">Existing only — use saved recipes</MenuItem>
+                  <MenuItem value="new">New only — create all new</MenuItem>
+                </Select>
+              </FormControl>
+
+              <Stack direction="row" spacing={2}>
+                <TextField
+                  label="Cuisine (optional)"
+                  size="small"
+                  fullWidth
+                  value={cuisine}
+                  onChange={(e) => setCuisine(e.target.value)}
+                  placeholder="e.g., Italian, Mexican..."
+                />
+                <FormControl size="small" sx={{ minWidth: 120 }}>
+                  <InputLabel>Difficulty</InputLabel>
+                  <Select
+                    value={difficulty}
+                    label="Difficulty"
+                    onChange={(e) => setDifficulty(e.target.value)}
+                  >
+                    {["Any", "Easy", "Medium", "Hard"].map((d) => (
+                      <MenuItem key={d} value={d}>{d}</MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
+              </Stack>
+
+              <TextField
+                label="Max cook time per recipe (minutes)"
+                size="small"
+                type="number"
+                fullWidth
+                value={maxCookTime}
+                onChange={(e) => setMaxCookTime(e.target.value)}
+                placeholder="e.g., 30"
+                inputProps={{ min: 0 }}
+              />
+
+              {/* --- Ingredients --- */}
+              <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: -1 }}>
+                Ingredients
+              </Typography>
+
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={usePantry}
+                    onChange={(e) => setUsePantry(e.target.checked)}
+                  />
+                }
+                label={`Prioritize pantry ingredients (${pantry.length} items)`}
+              />
+
+              <TextField
+                label="Must include (optional)"
                 size="small"
                 fullWidth
-                value={cuisine}
-                onChange={(e) => setCuisine(e.target.value)}
-                placeholder="e.g., Italian, Mexican..."
+                value={includeIngredients}
+                onChange={(e) => setIncludeIngredients(e.target.value)}
+                placeholder="e.g., chicken, rice, broccoli"
               />
-              <FormControl size="small" sx={{ minWidth: 120 }}>
-                <InputLabel>Difficulty</InputLabel>
-                <Select
-                  value={difficulty}
-                  label="Difficulty"
-                  onChange={(e) => setDifficulty(e.target.value)}
-                >
-                  {["Any", "Easy", "Medium", "Hard"].map((d) => (
-                    <MenuItem key={d} value={d}>{d}</MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+
+              <TextField
+                label="Never use (optional)"
+                size="small"
+                fullWidth
+                value={excludeIngredients}
+                onChange={(e) => setExcludeIngredients(e.target.value)}
+                placeholder="e.g., peanuts, shellfish, cilantro"
+              />
+
+              {/* --- Special instructions --- */}
+              <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: -1 }}>
+                Special Instructions
+              </Typography>
+
+              <TextField
+                multiline
+                rows={3}
+                fullWidth
+                value={specialInstructions}
+                onChange={(e) => setSpecialInstructions(e.target.value)}
+                placeholder="e.g., meal-prep friendly weekdays, comfort food weekends, no raw fish..."
+              />
             </Stack>
-
-            <TextField
-              label="Max cook time per recipe (minutes)"
-              size="small"
-              type="number"
-              fullWidth
-              value={maxCookTime}
-              onChange={(e) => setMaxCookTime(e.target.value)}
-              placeholder="e.g., 30"
-              inputProps={{ min: 0 }}
-            />
-
-            {/* --- Ingredients --- */}
-            <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: -1 }}>
-              Ingredients
-            </Typography>
-
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={usePantry}
-                  onChange={(e) => setUsePantry(e.target.checked)}
-                />
-              }
-              label={`Prioritize pantry ingredients (${pantry.length} items)`}
-            />
-
-            <TextField
-              label="Must include (optional)"
-              size="small"
-              fullWidth
-              value={includeIngredients}
-              onChange={(e) => setIncludeIngredients(e.target.value)}
-              placeholder="e.g., chicken, rice, broccoli"
-            />
-
-            <TextField
-              label="Never use (optional)"
-              size="small"
-              fullWidth
-              value={excludeIngredients}
-              onChange={(e) => setExcludeIngredients(e.target.value)}
-              placeholder="e.g., peanuts, shellfish, cilantro"
-            />
-
-            {/* --- Special instructions --- */}
-            <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: -1 }}>
-              Special Instructions
-            </Typography>
-
-            <TextField
-              multiline
-              rows={3}
-              fullWidth
-              value={specialInstructions}
-              onChange={(e) => setSpecialInstructions(e.target.value)}
-              placeholder="e.g., meal-prep friendly weekdays, comfort food weekends, no raw fish..."
-            />
-          </Stack>
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setDialogOpen(false)}>
-            Cancel
-          </Button>
-          <Button
-            variant="contained"
-            onClick={startGenerate}
-            disabled={mealTypes.length === 0}
-            startIcon={<AutoAwesomeIcon />}
-          >
-            Generate
-          </Button>
-        </DialogActions>
+          </DialogContent>
+          <DialogActions sx={{ px: 3, pb: 2 }}>
+            <Button onClick={() => setDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="contained"
+              onClick={startGenerate}
+              disabled={mealTypes.length === 0}
+              startIcon={<AutoAwesomeIcon />}
+            >
+              Generate
+            </Button>
+          </DialogActions>
         </>)}
       </Dialog>
 

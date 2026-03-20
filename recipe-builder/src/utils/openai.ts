@@ -50,18 +50,21 @@ export async function generateMealPlan(
 ${sourceInstruction}
 
 JSON structure:
-{"new_recipes":[{"title":"Name","description":"One sentence","ingredients":[{"food_item":"X","quantity":{"value":1,"unit":"cups"},"preparation":"diced"}],"instructions":[{"step_number":1,"description":"Step.","duration_minutes":5}],"prep_time_minutes":10,"cook_time_minutes":20,"total_time_minutes":30,"servings":4,"cuisine":"Italian","dietary_tags":[],"difficulty":"Easy","nutrition_info":{"calories":400,"protein_grams":20,"fat_grams":15,"carbohydrates_grams":45}}],"meal_plan":{"Monday":{"Breakfast":{"source":"existing","index":2},"Lunch":{"source":"new","index":0}}}}
+{"new_recipes":[{"title":"Name","meal_type":"Breakfast","description":"One sentence","ingredients":[{"food_item":"X","quantity":{"value":1,"unit":"cups"},"preparation":"diced"}],"instructions":[{"step_number":1,"description":"Step.","duration_minutes":5}],"prep_time_minutes":10,"cook_time_minutes":20,"total_time_minutes":30,"servings":4,"cuisine":"Italian","dietary_tags":[],"difficulty":"Easy","nutrition_info":{"calories":400,"protein_grams":20,"fat_grams":15,"carbohydrates_grams":45}}],"meal_plan":{"Monday":{"Breakfast":{"source":"new","index":0},"Lunch":{"source":"existing","index":2}}}}
 
-Rules:
+CRITICAL — Meal type rules (NEVER violate these):
+- Breakfast recipes MUST be breakfast food: eggs, oatmeal, pancakes, waffles, smoothies, toast, yogurt parfait, breakfast burritos, french toast, cereal, muffins
+- Breakfast MUST NOT be: rice bowls, pasta, stir-fry, skillets with rice, sausage pepper bowls, casseroles, or anything that is obviously a lunch/dinner
+- Lunch recipes: sandwiches, salads, soups, wraps, grain bowls, quesadillas
+- Dinner recipes: pasta, stir-fry, grilled proteins, casseroles, curries, tacos, roasted dishes
+- Each new_recipe MUST include a "meal_type" field matching where it appears in the plan
+
+Other rules:
 - meal_plan entries: {"source":"existing"|"new","index":N}
 - Only include requested days and meal types
 - New recipes: 5-8 ingredients, 3-5 steps
-- Meal-type appropriateness is MANDATORY:
-  - Breakfast: eggs, oatmeal, pancakes, smoothies, toast, yogurt — NOT pasta/steak/heavy meals
-  - Lunch: sandwiches, salads, soups, wraps, grain bowls — lighter than dinner
-  - Dinner: main courses — pasta, stir-fry, grilled proteins, casseroles, etc.
-- VARIETY: every dinner must be different. Vary cuisines and proteins across the week. Breakfast may repeat 2-3x max
-- Dietary restrictions and excluded ingredients are STRICT — no exceptions
+- VARIETY: every dinner must be a different dish. Vary cuisines and proteins. Breakfast may repeat 2-3x max
+- Dietary restrictions and excluded ingredients — no exceptions
 - Special instructions are top priority
 - Valid units: pieces, slices, cups, tbsp, tsp, oz, lbs, grams, kg, ml, liters, cans, sticks, cloves, bunches, dozen, loaf, head
 - Difficulties: Easy, Medium, Hard
@@ -138,6 +141,9 @@ Rules:
       `IMPORTANT — Special instructions from the user: "${preferences.specialInstructions.trim()}"`
     );
   }
+
+  parts.push("");
+  parts.push("REMINDER: Breakfast = breakfast food ONLY (eggs, pancakes, oatmeal, toast, smoothies). Do NOT put rice bowls, pasta, skillets, or dinner food at breakfast. Do NOT put breakfast food at dinner.");
 
   const userMessage = parts.join("\n");
 
