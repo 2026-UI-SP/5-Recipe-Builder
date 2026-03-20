@@ -45,34 +45,29 @@ export async function generateMealPlan(
     sourceInstruction = `You have access to existing saved recipes. USE THEM when they fit the user's preferences — this avoids generating duplicates. Only create new recipes when no existing recipe fits a slot.`;
   }
 
-  const systemPrompt = `You are an expert meal planning chef. Generate a personalized meal plan based on the user's preferences.
+  const systemPrompt = `You are an expert meal planning chef. Return ONLY valid JSON.
 
 ${sourceInstruction}
 
-Return ONLY valid JSON matching this structure:
+JSON structure:
 {"new_recipes":[{"title":"Name","description":"One sentence","ingredients":[{"food_item":"X","quantity":{"value":1,"unit":"cups"},"preparation":"diced"}],"instructions":[{"step_number":1,"description":"Step.","duration_minutes":5}],"prep_time_minutes":10,"cook_time_minutes":20,"total_time_minutes":30,"servings":4,"cuisine":"Italian","dietary_tags":[],"difficulty":"Easy","nutrition_info":{"calories":400,"protein_grams":20,"fat_grams":15,"carbohydrates_grams":45}}],"meal_plan":{"Monday":{"Breakfast":{"source":"existing","index":2},"Lunch":{"source":"new","index":0}}}}
 
 Rules:
-- meal_plan entries use {"source":"existing","index":N} to reference an existing recipe by its index, or {"source":"new","index":N} to reference a newly generated recipe by its index in new_recipes
-- Only include the requested days and meal types
-- For new recipes: keep ingredients to 5-8, instructions to 3-5 steps
-- Reuse recipes (existing or new) across days when sensible
-- Valid units: pieces, slices, cups, tbsp, tsp, oz, lbs, grams, kg, ml, liters, loaf, head, cans, bunches, dozen, sticks
-- Valid difficulties: Easy, Medium, Hard
-- Include realistic nutrition estimates per serving
-- Every recipe MUST respect all dietary restrictions and excluded ingredients — no exceptions
-- If the user provides special instructions, treat them as top-priority requirements
-- IMPORTANT: Use realistic grocery-store quantities and units. Think about how people actually buy and measure ingredients:
-  - Bread: use "slices" (e.g. 2 slices), not "pieces of bread"
-  - Eggs: use "pieces" (e.g. 2 pieces eggs)
-  - Milk/liquids: use "cups" or "ml", not "pieces"
-  - Herbs: use "tbsp" or "tsp" for fresh chopped, "tsp" for dried
-  - Meat/fish: use "oz" or "lbs" (e.g. 6 oz chicken breast)
-  - Cheese: use "oz" or "cups" (shredded)
-  - Produce: use "pieces" for whole items (1 pieces onion), "cups" for chopped
-  - Canned goods: use "cans" (e.g. 1 cans diced tomatoes)
-  - Butter: use "tbsp" or "sticks"
-  - Use consistent units for the same ingredient across all recipes so quantities can be aggregated`;
+- meal_plan entries: {"source":"existing"|"new","index":N}
+- Only include requested days and meal types
+- New recipes: 5-8 ingredients, 3-5 steps
+- Meal-type appropriateness is MANDATORY:
+  - Breakfast: eggs, oatmeal, pancakes, smoothies, toast, yogurt — NOT pasta/steak/heavy meals
+  - Lunch: sandwiches, salads, soups, wraps, grain bowls — lighter than dinner
+  - Dinner: main courses — pasta, stir-fry, grilled proteins, casseroles, etc.
+- VARIETY: every dinner must be different. Vary cuisines and proteins across the week. Breakfast may repeat 2-3x max
+- Dietary restrictions and excluded ingredients are STRICT — no exceptions
+- Special instructions are top priority
+- Valid units: pieces, slices, cups, tbsp, tsp, oz, lbs, grams, kg, ml, liters, cans, sticks, cloves, bunches, dozen, loaf, head
+- Difficulties: Easy, Medium, Hard
+- Include nutrition estimates per serving
+- Use grocery-store units: slices (bread), oz (meat/cheese), cans (canned goods), cups (liquids/chopped), tbsp/tsp (herbs/spices), pieces (whole produce/eggs)
+- Use CONSISTENT units for the same ingredient across all recipes`;
 
   // Build the user message from all preferences
   const parts: string[] = [];
@@ -144,8 +139,6 @@ Rules:
     );
   }
 
-  parts.push("Make the meals varied and interesting.");
-
   const userMessage = parts.join("\n");
 
   const controller = new AbortController();
@@ -166,6 +159,7 @@ Rules:
           { role: "user", content: userMessage },
         ],
         response_format: { type: "json_object" },
+        temperature: 1,
       }),
       signal: controller.signal,
     });

@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Typography,
   Box,
@@ -113,12 +113,34 @@ export default function DashboardPage({
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState("");
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   // Recipe picker state
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerDay, setPickerDay] = useState("");
   const [pickerMealType, setPickerMealType] = useState("");
   const [pickerSearch, setPickerSearch] = useState("");
+
+  // Rotating loading messages
+  const LOADING_MESSAGES = [
+    "Planning your meals...",
+    "Picking recipes...",
+    "Balancing nutrition...",
+    "Checking your pantry...",
+    "Creating your meal plan...",
+    "Almost done...",
+  ];
+  useEffect(() => {
+    if (!loading) return;
+    setLoadingMessage(LOADING_MESSAGES[0]);
+    let i = 1;
+    const interval = setInterval(() => {
+      setLoadingMessage(LOADING_MESSAGES[i % LOADING_MESSAGES.length]);
+      i++;
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [loading]);
 
   // Mobile swipeable day view — default to today
   const todayIndex = DAYS_OF_WEEK.indexOf(today);
@@ -134,9 +156,9 @@ export default function DashboardPage({
     const dx = e.changedTouches[0].clientX - touchStartX.current;
     const MIN_SWIPE = 50;
     if (dx < -MIN_SWIPE) {
-      setMobileDayIndex((i) => Math.min(6, i + 1));
+      setMobileDayIndex((i) => (i + 1) % 7);
     } else if (dx > MIN_SWIPE) {
-      setMobileDayIndex((i) => Math.max(0, i - 1));
+      setMobileDayIndex((i) => (i + 6) % 7);
     }
     touchStartX.current = null;
   };
@@ -172,7 +194,7 @@ export default function DashboardPage({
     );
   };
 
-  const handleGenerate = async () => {
+  const startGenerate = () => {
     if (!apiKey) {
       onSnackbar("Please set your OpenAI API key first.");
       onOpenSettings();
@@ -186,7 +208,16 @@ export default function DashboardPage({
       onSnackbar("No saved recipes to use. Try 'New only' or 'Mix' instead.");
       return;
     }
+    // If there's an existing meal plan, confirm before overwriting
+    if (hasMealPlan) {
+      setConfirmOpen(true);
+      return;
+    }
+    handleGenerate();
+  };
 
+  const handleGenerate = async () => {
+    setConfirmOpen(false);
     setLoading(true);
     try {
       const result = await generateMealPlan(
@@ -211,9 +242,10 @@ export default function DashboardPage({
       );
       setRecipes((prev) => [...prev, ...result.recipes]);
       setMealPlan(result.mealPlan);
+      setShoppingList([]);
       setDialogOpen(false);
       onSnackbar(
-        `Generated ${result.recipes.length} recipes for your meal plan!`
+        `Meal plan ready! Shopping list cleared for the new plan.`
       );
     } catch (err: any) {
       onSnackbar(`Error: ${err.message}`);
@@ -804,6 +836,19 @@ export default function DashboardPage({
         <DialogTitle>
           Generate Meal Plan
         </DialogTitle>
+        {loading ? (
+          <DialogContent>
+            <Box sx={{ py: 8, textAlign: "center" }}>
+              <CircularProgress size={48} sx={{ mb: 2 }} />
+              <Typography variant="h6" gutterBottom>
+                {loadingMessage}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                This may take up to a minute for a full week
+              </Typography>
+            </Box>
+          </DialogContent>
+        ) : (<>
         <DialogContent>
           <Stack spacing={3} sx={{ mt: 1 }}>
             {/* --- Schedule --- */}
@@ -998,18 +1043,33 @@ export default function DashboardPage({
           </Stack>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={() => setDialogOpen(false)} disabled={loading}>
+          <Button onClick={() => setDialogOpen(false)}>
             Cancel
           </Button>
           <Button
             variant="contained"
-            onClick={handleGenerate}
-            disabled={loading || mealTypes.length === 0}
-            startIcon={
-              loading ? <CircularProgress size={18} /> : <AutoAwesomeIcon />
-            }
+            onClick={startGenerate}
+            disabled={mealTypes.length === 0}
+            startIcon={<AutoAwesomeIcon />}
           >
-            {loading ? "Generating..." : "Generate"}
+            Generate
+          </Button>
+        </DialogActions>
+        </>)}
+      </Dialog>
+
+      {/* ===== CONFIRM OVERWRITE DIALOG ===== */}
+      <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)} maxWidth="xs">
+        <DialogTitle>Replace current meal plan?</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary">
+            This will replace your current meal plan and clear your shopping list. Any manual changes you've made will be lost.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setConfirmOpen(false)}>Cancel</Button>
+          <Button variant="contained" onClick={handleGenerate}>
+            Replace
           </Button>
         </DialogActions>
       </Dialog>
