@@ -2,7 +2,7 @@
   "name": "recipe-builder",
   "version": "0.1.0",
   "private": true,
-  "homepage": "https://2026-ui-sp.github.io/5-Recipe-Builder",  
+  "homepage": "https://2026-ui-sp.github.io/5-Recipe-Builder",
   "dependencies": {
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
@@ -16,6 +16,11 @@
     "@types/jest": "^27.5.2",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
+    "html5-qrcode": "^2.3.8",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.7",
+    "pako": "^2.1.0",
+    "qrcode.react": "^4.2.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-scripts": "5.0.1",
@@ -24,12 +29,12 @@
     "web-vitals": "^2.1.4"
   },
   "scripts": {
-  "start": "react-scripts start",
-  "build": "react-scripts build",
-  "predeploy": "npm run build",
-  "deploy": "gh-pages -d build",
-  "test": "react-scripts test",
-  "eject": "react-scripts eject"
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "predeploy": "npm run build",
+    "deploy": "gh-pages -d build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject"
   },
   "eslintConfig": {
     "extends": [
@@ -56,6 +61,7 @@
   },
   "devDependencies": {
     "@types/node": "^25.2.3",
+    "@types/pako": "^2.0.4",
     "gh-pages": "^6.3.0",
     "prettier": "^3.8.1"
   }

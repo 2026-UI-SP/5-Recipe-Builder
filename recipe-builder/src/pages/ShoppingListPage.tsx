@@ -12,14 +12,18 @@ import {
   ListItemSecondaryAction,
   Divider,
   Checkbox,
+  IconButton,
+  Tooltip,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
+import ShareIcon from "@mui/icons-material/Share";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import { FoodItem } from "../data/types";
 import { categorizeFood, CATEGORY_ORDER, CATEGORY_ICONS } from "../utils/foodCategories";
-import { normalizeUnit } from "../utils/helpers";
+import { normalizeUnit, normalizeIngredientName } from "../utils/helpers";
 import FoodItemDialog from "../components/FoodItemDialog";
 import EmptyState from "../components/EmptyState";
+import { formatShoppingListText, shareShoppingList } from "../utils/shareHelpers";
 
 interface ShoppingListPageProps {
   shoppingList: FoodItem[];
@@ -75,7 +79,7 @@ export default function ShoppingListPage({
     setPantry((prev) => {
       const existing = prev.findIndex(
         (p) =>
-          p.food.toLowerCase() === item.food.toLowerCase() &&
+          normalizeIngredientName(p.food) === normalizeIngredientName(item.food) &&
           normalizeUnit(p.quantity.unit) === normalizeUnit(item.quantity.unit)
       );
       if (existing >= 0) {
@@ -147,10 +151,18 @@ export default function ShoppingListPage({
 
   return (
     <Box>
-      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+      <Stack direction="row" alignItems="center" spacing={0.5} sx={{ mb: 1 }}>
         {shoppingList.length > 0 && (
           <Chip label={`${shoppingList.length} item${shoppingList.length !== 1 ? "s" : ""}`} size="small" variant="outlined" />
         )}
+        {shoppingList.length > 0 && (
+          <Tooltip title="Share list">
+            <IconButton size="small" onClick={() => shareShoppingList(formatShoppingListText(grouped), onSnackbar)} aria-label="Share shopping list">
+              <ShareIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        )}
+        <Box sx={{ flexGrow: 1 }} />
         <Button variant="contained" startIcon={<AddIcon />} size="small" onClick={() => setAddOpen(true)}>
           Add
         </Button>

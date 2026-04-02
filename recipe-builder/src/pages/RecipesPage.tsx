@@ -147,7 +147,7 @@ export default function RecipesPage({
   const handleAiGenerate = async () => {
     if (!aiPrompt.trim()) return;
     if (!apiKey) {
-      setAiError("Please set your OpenAI API key in Settings first.");
+      setAiError("Please set your OpenRouter API key in Settings first.");
       return;
     }
     setAiLoading(true);

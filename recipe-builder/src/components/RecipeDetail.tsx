@@ -269,7 +269,7 @@ export default function RecipeDetail({
             disabled={!modifyText.trim()}
             onClick={() => {
               onSnackbar(
-                "AI recipe modification will be available once OpenAI integration is set up."
+                "AI recipe modification will be available once OpenRouter integration is set up."
               );
               setModifyDialogOpen(false);
               setModifyText("");

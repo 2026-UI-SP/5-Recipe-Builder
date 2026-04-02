@@ -1,27 +1,20 @@
 /** Measurement units available in ingredient forms (pantry + shopping list). */
 export const UNITS = [
-  "pieces",
+  "whole",
   "slices",
   "cups",
   "tbsp",
   "tsp",
   "oz",
   "lbs",
-  "grams",
-  "kg",
-  "ml",
-  "liters",
   "gallons",
+  "cans",
+  "cloves",
+  "bunches",
+  "sticks",
   "loaf",
   "head",
-  "cans",
-  "bunches",
   "dozen",
-  "sticks",
-  "cloves",
-  "bags",
-  "bottles",
-  "packages",
 ];
 
 /** Height (in px) reserved for the fixed bottom navigation bar. */

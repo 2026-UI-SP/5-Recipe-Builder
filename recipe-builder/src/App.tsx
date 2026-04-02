@@ -36,6 +36,7 @@ import SettingsIcon from "@mui/icons-material/Settings";
 import CloseIcon from "@mui/icons-material/Close";
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
+import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
 import { FoodItem, Recipe, MealPlan } from "./data/types";
 import { buildTheme } from "./config/theme";
 import sampleRecipes from "./data/sampleRecipes";
@@ -44,6 +45,8 @@ import RecipesPage from "./pages/RecipesPage";
 import PantryPage from "./pages/PantryPage";
 import ShoppingListPage from "./pages/ShoppingListPage";
 import CookModePage from "./pages/CookModePage";
+import HelpGuide from "./components/HelpGuide";
+import DataTransferDialog from "./components/DataTransferDialog";
 
 function App() {
   // --- Persistent state ---
@@ -64,7 +67,7 @@ function App() {
     "darkMode",
     { defaultValue: null }
   );
-  const [apiKey, setApiKey] = useLocalStorageState<string>("openai-api-key", {
+  const [apiKey, setApiKey] = useLocalStorageState<string>("openrouter-api-key", {
     defaultValue: "",
   });
 
@@ -76,12 +79,25 @@ function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [showKey, setShowKey] = useState(false);
   const [keyDraft, setKeyDraft] = useState("");
+  const [hasSeenHelp, setHasSeenHelp] = useLocalStorageState<boolean>("has-seen-help", {
+    defaultValue: false,
+  });
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [dataTransferOpen, setDataTransferOpen] = useState(false);
+  const [dataTransferMode, setDataTransferMode] = useState<"export" | "import">("export");
 
   // --- Dark mode ---
   const prefersDark = useMediaQuery("(prefers-color-scheme: dark)");
   const isDark = darkMode !== null ? darkMode : prefersDark;
   const theme = useMemo(() => buildTheme(isDark), [isDark]);
 
+  // Show help guide on first visit
+  React.useEffect(() => {
+    if (!hasSeenHelp) {
+      setHelpOpen(true);
+      setHasSeenHelp(true);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const openSettings = () => {
     setKeyDraft(apiKey);
@@ -142,10 +158,10 @@ function App() {
           {/* API Key */}
           <Box>
             <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-              OpenAI API Key
+              OpenRouter API Key
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Stored only in your browser's localStorage. Never sent anywhere except OpenAI.
+              Stored only in your browser's localStorage. Never sent anywhere except OpenRouter.
             </Typography>
             <TextField
               label="API Key"
@@ -154,7 +170,7 @@ function App() {
               value={keyDraft}
               onChange={(e) => setKeyDraft(e.target.value)}
               type={showKey ? "text" : "password"}
-              placeholder="sk-..."
+              placeholder="sk-or-..."
               slotProps={{
                 input: {
                   endAdornment: (
@@ -171,6 +187,34 @@ function App() {
                 },
               }}
             />
+          </Box>
+
+          <Divider />
+
+          {/* Data Transfer */}
+          <Box>
+            <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
+              Data Transfer
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Move your recipes, meal plan, pantry, and settings to another device via QR code.
+            </Typography>
+            <Stack direction="row" spacing={1.5}>
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={() => { setDataTransferMode("export"); setDataTransferOpen(true); setSettingsOpen(false); }}
+              >
+                Export Data
+              </Button>
+              <Button
+                variant="outlined"
+                size="small"
+                onClick={() => { setDataTransferMode("import"); setDataTransferOpen(true); setSettingsOpen(false); }}
+              >
+                Import Data
+              </Button>
+            </Stack>
           </Box>
         </Stack>
       </DialogContent>
@@ -234,7 +278,10 @@ function App() {
             <Typography variant="h6" sx={{ flexGrow: 1, color: "primary.main", fontWeight: 700 }}>
               {["Meal Plan", "Recipes", "Pantry", "Shopping List"][tab]}
             </Typography>
-            <IconButton onClick={openSettings} sx={{ color: "text.secondary" }} aria-label="Settings">
+            <IconButton onClick={() => setHelpOpen(true)} sx={{ color: "text.secondary" }} aria-label="Help" data-tour="tour-help-btn">
+              <HelpOutlineIcon />
+            </IconButton>
+            <IconButton onClick={openSettings} sx={{ color: "text.secondary" }} aria-label="Settings" data-tour="tour-settings-btn">
               <SettingsIcon />
             </IconButton>
           </Toolbar>
@@ -308,11 +355,12 @@ function App() {
             component="nav"
             aria-label="Main navigation"
           >
-            <BottomNavigationAction label="Plan" icon={<CalendarMonthIcon />} />
-            <BottomNavigationAction label="Recipes" icon={<MenuBookIcon />} />
-            <BottomNavigationAction label="Pantry" icon={<KitchenIcon />} />
+            <BottomNavigationAction label="Plan" icon={<CalendarMonthIcon />} data-tour="tour-nav-plan" />
+            <BottomNavigationAction label="Recipes" icon={<MenuBookIcon />} data-tour="tour-nav-recipes" />
+            <BottomNavigationAction label="Pantry" icon={<KitchenIcon />} data-tour="tour-nav-pantry" />
             <BottomNavigationAction
               label="Shopping"
+              data-tour="tour-nav-shopping"
               icon={
                 <Badge badgeContent={shoppingList.length} color="error" max={99} invisible={shoppingList.length === 0}>
                   <ShoppingCartIcon />
@@ -324,6 +372,8 @@ function App() {
       </Box>
 
       {settingsDialog}
+      <HelpGuide open={helpOpen} onClose={() => setHelpOpen(false)} onSetTab={setTab} />
+      <DataTransferDialog open={dataTransferOpen} mode={dataTransferMode} onClose={() => setDataTransferOpen(false)} />
       {snackbarElement}
     </ThemeProvider>
   );

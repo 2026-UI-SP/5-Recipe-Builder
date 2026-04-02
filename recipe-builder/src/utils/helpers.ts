@@ -1,51 +1,173 @@
-import { FoodItem, Recipe } from "../data/types";
+import { FoodItem, Recipe, RecipeIngredient } from "../data/types";
+
+/**
+ * Ingredient name synonyms — maps variant names to a single canonical form.
+ */
+const INGREDIENT_ALIASES: Record<string, string> = {
+  "green onion": "scallion",
+  "green onions": "scallion",
+  "spring onion": "scallion",
+  "spring onions": "scallion",
+  "scallions": "scallion",
+  "red pepper": "red bell pepper",
+  "green pepper": "green bell pepper",
+  "yellow pepper": "yellow bell pepper",
+  "orange pepper": "orange bell pepper",
+  "capsicum": "bell pepper",
+  "coriander": "cilantro",
+  "coriander leaves": "cilantro",
+  "fresh coriander": "cilantro",
+  "fresh cilantro": "cilantro",
+  "rapeseed oil": "canola oil",
+  "vegetable stock": "vegetable broth",
+  "chicken stock": "chicken broth",
+  "beef stock": "beef broth",
+  "cornstarch": "corn starch",
+  "bicarbonate of soda": "baking soda",
+  "aubergine": "eggplant",
+  "courgette": "zucchini",
+  "rocket": "arugula",
+  "prawns": "shrimp",
+  "mince": "ground beef",
+  "ground meat": "ground beef",
+  "minced beef": "ground beef",
+  "minced meat": "ground beef",
+  "heavy cream": "heavy whipping cream",
+  "whipping cream": "heavy whipping cream",
+  "double cream": "heavy whipping cream",
+  "single cream": "light cream",
+  "half-and-half": "half and half",
+  "powdered sugar": "confectioners sugar",
+  "icing sugar": "confectioners sugar",
+  "plain flour": "all-purpose flour",
+  "ap flour": "all-purpose flour",
+  "wholemeal flour": "whole wheat flour",
+  "soy sauce": "soy sauce",
+  "shoyu": "soy sauce",
+  "tamari": "soy sauce",
+  "extra virgin olive oil": "olive oil",
+  "evoo": "olive oil",
+};
+
+/**
+ * Common plural endings to strip for ingredient matching.
+ * Order matters — check longer suffixes first.
+ */
+const PLURAL_RULES: [RegExp, string][] = [
+  [/ies$/i, "y"],       // berries → berry, cherries → cherry
+  [/ves$/i, "f"],       // loaves → loaf, halves → half
+  [/ses$/i, "se"],      // cheeses → cheese (but not "buses")
+  [/oes$/i, "o"],       // tomatoes → tomato, potatoes → potato
+  [/s$/i, ""],          // peppers → pepper, onions → onion
+];
+
+/** Normalize an ingredient name to a canonical singular, lowercase form. */
+export function normalizeIngredientName(name: string): string {
+  let normalized = name.toLowerCase().trim();
+
+  // Check aliases first (before depluralization)
+  if (INGREDIENT_ALIASES[normalized]) {
+    return INGREDIENT_ALIASES[normalized];
+  }
+
+  // Strip trailing "s" / plurals
+  for (const [pattern, replacement] of PLURAL_RULES) {
+    const singular = normalized.replace(pattern, replacement);
+    // Check alias again with singular form
+    if (INGREDIENT_ALIASES[singular]) {
+      return INGREDIENT_ALIASES[singular];
+    }
+    if (singular !== normalized) {
+      normalized = singular;
+      break;
+    }
+  }
+
+  return normalized;
+}
+
+/** Normalize all ingredients in a recipe (mutates in place for post-processing). */
+export function normalizeRecipeIngredients(ingredients: RecipeIngredient[]): RecipeIngredient[] {
+  return ingredients.map((ing) => ({
+    ...ing,
+    food_item: normalizeIngredientName(ing.food_item),
+    quantity: {
+      ...ing.quantity,
+      unit: normalizeUnit(ing.quantity.unit),
+    },
+  }));
+}
 
 /**
  * Canonical unit aliases — maps variant names to a single canonical form.
  * This prevents mismatches between e.g. "count" in pantry and "pieces" in recipes.
  */
 const UNIT_ALIASES: Record<string, string> = {
-  count: "pieces",
-  piece: "pieces",
-  pcs: "pieces",
-  each: "pieces",
+  // Count
+  count: "whole",
+  piece: "whole",
+  pieces: "whole",
+  pcs: "whole",
+  each: "whole",
+  // Slices
   slice: "slices",
-  clove: "cloves",
+  // Volume
   cup: "cups",
   tablespoon: "tbsp",
   tablespoons: "tbsp",
   teaspoon: "tsp",
   teaspoons: "tsp",
+  // Weight — imperial
   ounce: "oz",
   ounces: "oz",
   pound: "lbs",
   pounds: "lbs",
   lb: "lbs",
-  gram: "grams",
-  g: "grams",
-  kilogram: "kg",
-  kilograms: "kg",
-  milliliter: "ml",
-  milliliters: "ml",
-  liter: "liters",
-  l: "liters",
+  // Weight — metric → convert to imperial canonical
+  gram: "oz",
+  grams: "oz",
+  g: "oz",
+  kilogram: "lbs",
+  kilograms: "lbs",
+  kg: "lbs",
+  // Volume — metric → convert to imperial canonical
+  milliliter: "cups",
+  milliliters: "cups",
+  ml: "cups",
+  liter: "cups",
+  liters: "cups",
+  l: "cups",
   gallon: "gallons",
+  // Whole items
   loaves: "loaf",
   heads: "head",
   bunch: "bunches",
+  // Containers
   can: "cans",
-  jar: "jars",
-  bottle: "bottles",
-  bag: "bags",
-  box: "boxes",
-  package: "packages",
-  pkg: "packages",
+  jar: "cans",
+  jars: "cans",
+  bottle: "whole",
+  bottles: "whole",
+  bag: "whole",
+  bags: "whole",
+  box: "whole",
+  boxes: "whole",
+  package: "whole",
+  packages: "whole",
+  pkg: "whole",
+  // Other
   dozen: "dozen",
   stick: "sticks",
-  strip: "strips",
-  fillet: "fillets",
-  breast: "breasts",
-  thigh: "thighs",
+  clove: "cloves",
+  // Meat cuts → oz by weight
+  strip: "oz",
+  strips: "oz",
+  fillet: "whole",
+  fillets: "whole",
+  breast: "whole",
+  breasts: "whole",
+  thigh: "whole",
+  thighs: "whole",
 };
 
 /** Normalize a unit string to its canonical form. */
@@ -68,7 +190,7 @@ export function deductIngredients(
     const normUnit = normalizeUnit(ing.quantity.unit);
     const idx = updated.findIndex(
       (p) =>
-        p.food.toLowerCase() === ing.food_item.toLowerCase() &&
+        normalizeIngredientName(p.food) === normalizeIngredientName(ing.food_item) &&
         normalizeUnit(p.quantity.unit) === normUnit
     );
     if (idx >= 0) {
@@ -100,7 +222,7 @@ export function findMissingIngredients(
     const normUnit = normalizeUnit(ing.quantity.unit);
     const inPantry = pantry.find(
       (p) =>
-        p.food.toLowerCase() === ing.food_item.toLowerCase() &&
+        normalizeIngredientName(p.food) === normalizeIngredientName(ing.food_item) &&
         normalizeUnit(p.quantity.unit) === normUnit
     );
     if (!inPantry || inPantry.quantity.value < ing.quantity.value) {
@@ -136,7 +258,8 @@ export function buildShoppingListFromMealPlan(
       if (!recipe) continue;
       for (const ing of recipe.ingredients) {
         const normUnit = normalizeUnit(ing.quantity.unit);
-        const key = `${ing.food_item.toLowerCase()}-${normUnit}`;
+        const normName = normalizeIngredientName(ing.food_item);
+        const key = `${normName}-${normUnit}`;
         const existing = totals.get(key);
         if (existing) {
           existing.value += ing.quantity.value;
@@ -145,7 +268,7 @@ export function buildShoppingListFromMealPlan(
           }
         } else {
           totals.set(key, {
-            food: ing.food_item,
+            food: normName,
             value: ing.quantity.value,
             unit: normUnit,
             sources: [recipe.title],
@@ -160,7 +283,7 @@ export function buildShoppingListFromMealPlan(
   for (const item of Array.from(totals.values())) {
     const inPantry = pantry.find(
       (p) =>
-        p.food.toLowerCase() === item.food.toLowerCase() &&
+        normalizeIngredientName(p.food) === item.food &&
         normalizeUnit(p.quantity.unit) === item.unit
     );
     const pantryQty = inPantry ? inPantry.quantity.value : 0;
@@ -194,7 +317,7 @@ export function hasEnoughInPantry(
   const normUnit = normalizeUnit(unit);
   const inPantry = pantry.find(
     (p) =>
-      p.food.toLowerCase() === foodItem.toLowerCase() &&
+      normalizeIngredientName(p.food) === normalizeIngredientName(foodItem) &&
       normalizeUnit(p.quantity.unit) === normUnit
   );
   return !!inPantry && inPantry.quantity.value >= needed;

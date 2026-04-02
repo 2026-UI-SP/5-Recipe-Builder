@@ -28,6 +28,7 @@ import NavigateBeforeIcon from "@mui/icons-material/NavigateBefore";
 import NavigateNextIcon from "@mui/icons-material/NavigateNext";
 import { Recipe, FoodItem, MealPlan } from "../data/types";
 import { generateMealPlan } from "../utils/openai";
+import { generateMealPlanPDF } from "../utils/pdfExport";
 import { buildShoppingListFromMealPlan } from "../utils/helpers";
 import MealSlot from "../components/MealSlot";
 import NutritionSummary from "../components/NutritionSummary";
@@ -146,7 +147,7 @@ export default function DashboardPage({
   // --- Generation ---
   const startGenerate = () => {
     if (!apiKey) {
-      onSnackbar("Please set your OpenAI API key first.");
+      onSnackbar("Please set your OpenRouter API key first.");
       onOpenSettings();
       return;
     }
@@ -307,21 +308,20 @@ export default function DashboardPage({
   };
 
   const handleDownloadMealPlan = () => {
-    const blob = new Blob([exportMealPlanText()], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "meal-plan.txt";
-    a.click();
-    URL.revokeObjectURL(url);
-    onSnackbar("Meal plan downloaded!");
+    try {
+      generateMealPlanPDF(mealPlan, getRecipeById);
+      onSnackbar("Meal plan PDF downloaded!");
+    } catch {
+      onSnackbar("Failed to generate PDF");
+    }
   };
 
   // --- Render helpers ---
-  const renderDay = (day: string) => {
+  const renderDay = (day: string, index?: number) => {
     const isToday = day === today;
     return (
       <Card
+        {...(index === 0 ? { "data-tour": "tour-day-card" } : {})}
         sx={{
           height: "100%",
           borderTop: 3,
@@ -361,7 +361,7 @@ export default function DashboardPage({
     <Box>
       {/* Action buttons */}
       <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mb: 1 }}>
-        <Button variant="contained" startIcon={<AutoAwesomeIcon />} onClick={() => setDialogOpen(true)} size="small" sx={{ whiteSpace: "nowrap" }}>
+        <Button variant="contained" startIcon={<AutoAwesomeIcon />} onClick={() => setDialogOpen(true)} size="small" sx={{ whiteSpace: "nowrap" }} data-tour="tour-generate-btn">
           Generate
         </Button>
         <Box sx={{ flexGrow: 1 }} />
@@ -377,8 +377,8 @@ export default function DashboardPage({
                 <ContentCopyIcon fontSize="small" />
               </IconButton>
             </Tooltip>
-            <Tooltip title="Export meal plan">
-              <IconButton size="small" onClick={handleDownloadMealPlan} aria-label="Download meal plan">
+            <Tooltip title="Download PDF">
+              <IconButton size="small" onClick={handleDownloadMealPlan} aria-label="Download PDF">
                 <DownloadIcon fontSize="small" />
               </IconButton>
             </Tooltip>
@@ -433,6 +433,7 @@ export default function DashboardPage({
 
           {/* Day card */}
           <Card
+            data-tour="tour-day-card"
             sx={{
               borderTop: 2,
               borderColor: isMobileToday ? "primary.main" : "divider",
@@ -461,9 +462,9 @@ export default function DashboardPage({
         </Box>
       ) : (
         <Grid container spacing={2}>
-          {DAYS_OF_WEEK.map((day) => (
+          {DAYS_OF_WEEK.map((day, i) => (
             <Grid size={{ xs: 12, sm: 6, md: 4 }} key={day}>
-              {renderDay(day)}
+              {renderDay(day, i)}
             </Grid>
           ))}
         </Grid>

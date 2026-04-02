@@ -1,4 +1,5 @@
 import { FoodItem, Recipe, MealPlan, MealPlanPreferences } from "../data/types";
+import { normalizeRecipeIngredients } from "./helpers";
 
 const DAYS_OF_WEEK = [
   "Monday",
@@ -15,11 +16,9 @@ interface GenerationResult {
   mealPlan: MealPlan;
 }
 
-// How many days per batch — keeps each request small enough to avoid timeouts
-const DAYS_PER_BATCH = 3;
-
 function buildSystemPrompt(
-  recipeSource: "new" | "existing" | "mix"
+  recipeSource: "new" | "existing" | "mix",
+  mealType: string
 ): string {
   let sourceInstruction: string;
   if (recipeSource === "existing") {
@@ -30,46 +29,88 @@ function buildSystemPrompt(
     sourceInstruction = `You have access to existing saved recipes. USE THEM when they fit the user's preferences — this avoids generating duplicates. Only create new recipes when no existing recipe fits a slot.`;
   }
 
-  return `You are an expert meal planning chef. Return ONLY valid JSON.
+  const mealTypeRules: Record<string, string> = {
+    Breakfast: `You are generating ONLY Breakfast recipes. Keep breakfasts simple and classic — no need for fancy cuisines.
+Breakfast ONLY allows: eggs (scrambled, fried, omelette), oatmeal, pancakes, waffles, smoothies, toast, yogurt parfait, breakfast burritos, french toast, cereal, muffins, granola, bagels, overnight oats, fruit bowls, hash browns, bacon and eggs.
+Breakfast STRICTLY FORBIDS: curry, stir-fry, pasta, spaghetti, salmon, rice bowls, tacos, casseroles, grilled meat, roasted vegetables, soup, sandwiches, or ANY food that is typically eaten at lunch or dinner.
+Breakfast may repeat up to 2-3 times across the week. Set "cuisine" to "American" for all breakfast recipes.`,
+    Lunch: `You are generating ONLY Lunch recipes.
+Lunch allows any light-to-moderate meal including but not limited to: sandwiches, salads, soups, wraps, grain bowls, quesadillas, light pastas, flatbreads, noodle bowls, spring rolls, bento boxes, poke bowls, banh mi, gyoza, cold noodles, lettuce wraps, hummus plates, rice paper rolls, congee, onigiri, and more.
+VARIETY IS CRITICAL: Every single lunch MUST be a completely different dish with a different main ingredient. No two lunches should be the same type of food (e.g., not two wraps, not two salads). Vary the cuisine, protein, and style for each day.`,
+    Dinner: `You are generating ONLY Dinner recipes.
+Dinner allows any hearty, substantial meal including but not limited to: pasta, stir-fry, grilled proteins, casseroles, curries, tacos, roasted dishes, rice bowls, noodle soups (ramen, pho, udon), dumplings, fried rice, teriyaki, braised meats, stews, baked dishes, stuffed peppers, steak, burgers, fajitas, enchiladas, pad thai, lo mein, bibimbap, katsu, sushi bowls, tikka masala, bulgogi, laksa, satay, and more.
+VARIETY IS CRITICAL: Every single dinner MUST be a completely different dish with a different main ingredient and cooking style. No two dinners should be similar. Use a different protein and cooking method for each day.`,
+  };
+
+  const rules = mealTypeRules[mealType] || `You are generating ONLY ${mealType} recipes. Every recipe must be appropriate for ${mealType}. Each day should have a different dish.`;
+
+  return `You are an expert meal planning chef. You MUST respond with valid JSON only — no text before or after.
 
 ${sourceInstruction}
 
-# MEAL TYPE RULES — TOP PRIORITY, NEVER VIOLATE
+# MEAL TYPE — ${mealType.toUpperCase()} ONLY
+${rules}
 
-Breakfast ONLY allows: eggs (scrambled, fried, omelette), oatmeal, pancakes, waffles, smoothies, toast, yogurt parfait, breakfast burritos, french toast, cereal, muffins, granola, bagels, overnight oats, fruit bowls, hash browns, bacon and eggs.
+Every new_recipe MUST have "meal_type":"${mealType}".
 
-Breakfast STRICTLY FORBIDS: curry, stir-fry, pasta, spaghetti, salmon, rice bowls, tacos, casseroles, grilled meat, roasted vegetables, soup, sandwiches, or ANY food that is typically eaten at lunch or dinner.
+# Required JSON structure
 
-Lunch ONLY allows: sandwiches, salads, soups, wraps, grain bowls, quesadillas, light pastas, flatbreads.
+{
+  "new_recipes": [
+    {
+      "title": "Recipe Name",
+      "meal_type": "${mealType}",
+      "description": "One sentence description.",
+      "ingredients": [
+        { "food_item": "chicken breast", "quantity": { "value": 8, "unit": "oz" }, "preparation": "diced" }
+      ],
+      "instructions": [
+        { "step_number": 1, "description": "Do something.", "duration_minutes": 5 }
+      ],
+      "prep_time_minutes": 10,
+      "cook_time_minutes": 20,
+      "total_time_minutes": 30,
+      "servings": 4,
+      "cuisine": "Italian",
+      "dietary_tags": [],
+      "difficulty": "Easy",
+      "nutrition_info": { "calories": 400, "protein_grams": 20, "fat_grams": 15, "carbohydrates_grams": 45 }
+    }
+  ],
+  "meal_plan": {
+    "Monday": { "${mealType}": { "source": "new", "index": 0 } }
+  }
+}
 
-Dinner ONLY allows: pasta, stir-fry, grilled proteins, casseroles, curries, tacos, roasted dishes, salmon, rice bowls, hearty meals.
-
-Each new_recipe MUST have a "meal_type" field. Before assigning a recipe to a meal slot, verify it belongs to that meal type.
-
-# JSON structure
-{"new_recipes":[{"title":"Name","meal_type":"Breakfast","description":"One sentence","ingredients":[{"food_item":"X","quantity":{"value":1,"unit":"cups"},"preparation":"diced"}],"instructions":[{"step_number":1,"description":"Step.","duration_minutes":5}],"prep_time_minutes":10,"cook_time_minutes":20,"total_time_minutes":30,"servings":4,"cuisine":"Italian","dietary_tags":[],"difficulty":"Easy","nutrition_info":{"calories":400,"protein_grams":20,"fat_grams":15,"carbohydrates_grams":45}}],"meal_plan":{"Monday":{"Breakfast":{"source":"new","index":0},"Lunch":{"source":"existing","index":2}}}}
-
-# Other rules
-- meal_plan entries: {"source":"existing"|"new","index":N}
-- Only include requested days and meal types
+# Rules
+- meal_plan entries use: {"source":"existing","index":N} or {"source":"new","index":N}
+- Only include the meal type "${mealType}" in each day
 - New recipes: 5-8 ingredients, 3-5 steps
-- VARIETY: every dinner must be a different dish. Vary cuisines and proteins. Breakfast may repeat 2-3x max
 - Dietary restrictions and excluded ingredients — no exceptions
 - Special instructions are top priority
-- Valid units: pieces, slices, cups, tbsp, tsp, oz, lbs, grams, kg, ml, liters, cans, sticks, cloves, bunches, dozen, loaf, head
+- Valid units (USE ONLY THESE): whole, slices, cups, tbsp, tsp, oz, lbs, gallons, cans, cloves, bunches, sticks, loaf, head, dozen
 - Difficulties: Easy, Medium, Hard
 - Include nutrition estimates per serving
-- Use grocery-store units: slices (bread), oz (meat/cheese), cans (canned goods), cups (liquids/chopped), tbsp/tsp (herbs/spices), pieces (whole produce/eggs)
-- Use CONSISTENT units for the same ingredient across all recipes`;
+- Use grocery-store units: slices (bread), oz (meat/cheese), cans (canned goods), cups (liquids/chopped), gallons (milk), tbsp/tsp (herbs/spices), whole (produce/eggs)
+- Use CONSISTENT units for the same ingredient across all recipes
+- CRITICAL: quantity values MUST be decimal numbers, NOT fractions. Use 0.25 instead of 1/4, 0.5 instead of 1/2, 0.33 instead of 1/3, etc.`;
 }
 
 function buildUserMessage(
   days: string[],
+  mealType: string,
   preferences: MealPlanPreferences,
   pantryItems: FoodItem[],
-  existingList: { index: number; title: string; cuisine: string; time: number; difficulty: string; tags: string[]; calories?: number }[]
+  existingList: { index: number; title: string; cuisine: string; time: number; difficulty: string; tags: string[]; calories?: number }[],
+  avoidDishes: string[] = []
 ): string {
   const parts: string[] = [];
+
+  if (avoidDishes.length > 0) {
+    parts.push(`IMPORTANT — The following dishes are ALREADY planned for other meals this week. Do NOT use any of these or anything similar:`);
+    parts.push(avoidDishes.map((d) => `  - ${d}`).join("\n"));
+    parts.push("");
+  }
 
   if (existingList.length > 0) {
     parts.push("EXISTING SAVED RECIPES (use these when they fit):");
@@ -82,9 +123,9 @@ function buildUserMessage(
   }
 
   parts.push(
-    `Generate a meal plan for ${days.length} day${days.length > 1 ? "s" : ""} (${days.join(", ")}).`
+    `Generate ${mealType} recipes for ${days.length} day${days.length > 1 ? "s" : ""} (${days.join(", ")}).`
   );
-  parts.push(`Meal types needed each day: ${preferences.mealTypes.join(", ")}.`);
+  parts.push(`Each day needs exactly one ${mealType} recipe.`);
   parts.push(`Servings per recipe: ${preferences.servings}.`);
 
   if (preferences.difficulty && preferences.difficulty !== "Any") {
@@ -118,7 +159,7 @@ function buildUserMessage(
     );
   }
 
-  if (preferences.cuisinePreference) {
+  if (preferences.cuisinePreference && mealType !== "Breakfast") {
     parts.push(`Cuisine preference: ${preferences.cuisinePreference}.`);
   }
 
@@ -147,14 +188,32 @@ function buildUserMessage(
     );
   }
 
-  parts.push("");
-  parts.push("FINAL CHECK — For each meal slot, verify the recipe fits the meal type:");
-  parts.push("- Breakfast: ONLY eggs, oatmeal, pancakes, waffles, smoothies, toast, yogurt, french toast, cereal, muffins, granola, bagels, overnight oats, fruit bowls, bacon and eggs.");
-  parts.push("- Breakfast NEVER: curry, stir-fry, pasta, spaghetti, salmon, rice bowls, tacos, grilled meat, roasted vegetables, soup, sandwiches.");
-  parts.push("- Lunch: sandwiches, salads, soups, wraps, grain bowls, quesadillas.");
-  parts.push("- Dinner: pasta, stir-fry, grilled proteins, casseroles, curries, tacos, roasted dishes, salmon, rice bowls.");
-
   return parts.join("\n");
+}
+
+const MAX_RETRIES = 3;
+
+async function fetchWithRetry(
+  url: string,
+  options: RequestInit,
+  batchId: string,
+  onProgress?: (message: string) => void
+): Promise<Response> {
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    const response = await fetch(url, options);
+    if (response.status === 429 && attempt < MAX_RETRIES) {
+      // Parse retry delay from error or default to 15s
+      const body = await response.json().catch(() => ({}));
+      const msg = body.error?.message || "";
+      const match = msg.match(/try again in (\d+(\.\d+)?)s/i);
+      const waitSec = match ? Math.ceil(parseFloat(match[1])) + 1 : 30;
+      onProgress?.(`Rate limited, waiting ${waitSec}s before retrying ${batchId}...`);
+      await new Promise((r) => setTimeout(r, waitSec * 1000));
+      continue;
+    }
+    return response;
+  }
+  throw new Error(`Rate limit exceeded after ${MAX_RETRIES} retries for ${batchId}.`);
 }
 
 async function fetchBatch(
@@ -162,31 +221,36 @@ async function fetchBatch(
   systemPrompt: string,
   userMessage: string,
   batchId: string,
-  existingRecipes: Recipe[] = []
+  existingRecipes: Recipe[] = [],
+  onProgress?: (message: string) => void
 ): Promise<{ newRecipes: Recipe[]; mealPlan: MealPlan }> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 120000); // 2 min per batch
+  const timeout = setTimeout(() => controller.abort(), 300000); // 5 min per batch (includes retry waits)
 
   let response: Response;
   try {
-    response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
+    response = await fetchWithRetry(
+      "https://openrouter.ai/api/v1/chat/completions",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: "qwen/qwen3.6-plus:free",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userMessage },
+          ],
+          max_tokens: 8192,
+          response_format: { type: "json_object" },
+        }),
+        signal: controller.signal,
       },
-      body: JSON.stringify({
-        model: "gpt-5-nano",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userMessage },
-        ],
-        response_format: { type: "json_object" },
-        max_completion_tokens: 32768,
-        reasoning_effort: "low",
-      }),
-      signal: controller.signal,
-    });
+      batchId,
+      onProgress
+    );
   } catch (err: any) {
     clearTimeout(timeout);
     if (err.name === "AbortError") {
@@ -199,7 +263,7 @@ async function fetchBatch(
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
     throw new Error(
-      error.error?.message || `OpenAI API error: ${response.status}`
+      error.error?.message || `OpenRouter API error: ${response.status}`
     );
   }
 
@@ -208,15 +272,14 @@ async function fetchBatch(
   try {
     let raw = data.choices?.[0]?.message?.content ?? "{}";
     raw = raw.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
+    // Fix fractions like 1/4, 1/2, 3/4 that the model outputs as bare expressions
+    raw = raw.replace(/:\s*(\d+)\s*\/\s*(\d+)/g, (_: string, n: string, d: string) => `: ${(parseInt(n) / parseInt(d)).toFixed(2)}`);
     content = JSON.parse(raw);
   } catch {
-    const raw = data.choices?.[0]?.message?.content ?? "(empty)";
-    console.error(`Batch ${batchId} parse error. Raw:`, raw);
     throw new Error(`Failed to parse batch ${batchId} response from AI.`);
   }
 
   if (!content.meal_plan) {
-    console.error(`Batch ${batchId} missing meal_plan:`, JSON.stringify(content));
     throw new Error(`AI returned unexpected format for batch ${batchId}.`);
   }
 
@@ -224,6 +287,7 @@ async function fetchBatch(
     (r: any, i: number) => ({
       ...r,
       id: `gen-${Date.now()}-${batchId}-${i}`,
+      ingredients: normalizeRecipeIngredients(r.ingredients || []),
     })
   );
 
@@ -244,7 +308,25 @@ async function fetchBatch(
   return { newRecipes, mealPlan };
 }
 
+let _generating = false;
+
 export async function generateMealPlan(
+  apiKey: string,
+  preferences: MealPlanPreferences,
+  pantryItems: FoodItem[],
+  existingRecipes: Recipe[],
+  onProgress?: (message: string) => void
+): Promise<GenerationResult> {
+  if (_generating) throw new Error("Generation already in progress.");
+  _generating = true;
+  try {
+    return await _generateMealPlan(apiKey, preferences, pantryItems, existingRecipes, onProgress);
+  } finally {
+    _generating = false;
+  }
+}
+
+async function _generateMealPlan(
   apiKey: string,
   preferences: MealPlanPreferences,
   pantryItems: FoodItem[],
@@ -264,61 +346,27 @@ export async function generateMealPlan(
     calories: r.nutrition_info?.calories,
   }));
 
-  const systemPrompt = buildSystemPrompt(recipeSource);
-
-  // Split days into batches
-  const batches: string[][] = [];
-  for (let i = 0; i < allDays.length; i += DAYS_PER_BATCH) {
-    batches.push(allDays.slice(i, i + DAYS_PER_BATCH));
-  }
-
-  // For small plans (1 batch), just do a single request
-  if (batches.length === 1) {
-    onProgress?.("Generating your meal plan...");
-    const userMessage = buildUserMessage(allDays, preferences, pantryItems, existingList);
-    const result = await fetchBatch(apiKey, systemPrompt, userMessage, "0", existingRecipes);
-
-    // Check for missing slots and fill them
-    const missingSlots: { day: string; mealType: string }[] = [];
-    for (const day of allDays) {
-      for (const mealType of preferences.mealTypes) {
-        if (!result.mealPlan[day]?.[mealType]) {
-          missingSlots.push({ day, mealType });
-        }
-      }
-    }
-    if (missingSlots.length > 0) {
-      try {
-        const fillMessage = `Generate ONLY recipes for these missing slots: ${missingSlots.map((s) => `${s.day} ${s.mealType}`).join(", ")}.\nReturn JSON: {"new_recipes":[...],"meal_plan":{"Day":{"MealType":{"source":"new","index":0}}}}`;
-        const fillResult = await fetchBatch(apiKey, systemPrompt, fillMessage, "fill", existingRecipes);
-        result.newRecipes.push(...fillResult.newRecipes);
-        for (const [day, meals] of Object.entries(fillResult.mealPlan)) {
-          if (!result.mealPlan[day]) result.mealPlan[day] = {};
-          for (const [mt, id] of Object.entries(meals)) {
-            if (!result.mealPlan[day][mt]) result.mealPlan[day][mt] = id;
-          }
-        }
-      } catch { /* return what we have */ }
-    }
-    return { recipes: result.newRecipes, mealPlan: result.mealPlan };
-  }
-
-  // For larger plans, run batches in parallel
-  onProgress?.(`Generating ${batches.length} batches in parallel...`);
-
-  const batchPromises = batches.map((batchDays, idx) => {
-    const userMessage = buildUserMessage(batchDays, preferences, pantryItems, existingList);
-    return fetchBatch(apiKey, systemPrompt, userMessage, String(idx), existingRecipes);
-  });
-
-  const batchResults = await Promise.all(batchPromises);
-
-  // Merge all batch results
+  const mealTypes = preferences.mealTypes;
   const allNewRecipes: Recipe[] = [];
   const mergedMealPlan: MealPlan = {};
+  const usedDishNames: string[] = [];
 
-  for (const result of batchResults) {
+  // Run each meal type sequentially with spacing to stay within free tier rate limits
+  let isFirstBatch = true;
+  for (const mealType of mealTypes) {
+    if (!isFirstBatch) {
+      await new Promise((r) => setTimeout(r, 2000));
+    }
+    isFirstBatch = false;
+    onProgress?.(`Generating ${mealType}...`);
+    const systemPrompt = buildSystemPrompt(recipeSource, mealType);
+    const userMessage = buildUserMessage(allDays, mealType, preferences, pantryItems, existingList, usedDishNames);
+    const result = await fetchBatch(apiKey, systemPrompt, userMessage, mealType, existingRecipes, onProgress);
+
     allNewRecipes.push(...result.newRecipes);
+    for (const r of result.newRecipes) {
+      usedDishNames.push(r.title);
+    }
     for (const [day, meals] of Object.entries(result.mealPlan)) {
       mergedMealPlan[day] = { ...mergedMealPlan[day], ...meals };
     }
@@ -326,10 +374,10 @@ export async function generateMealPlan(
 
   onProgress?.("Finalizing meal plan...");
 
-  // Check for missing slots
+  // Check for missing slots and try to fill them sequentially
   const missingSlots: { day: string; mealType: string }[] = [];
   for (const day of allDays) {
-    for (const mealType of preferences.mealTypes) {
+    for (const mealType of mealTypes) {
       if (!mergedMealPlan[day]?.[mealType]) {
         missingSlots.push({ day, mealType });
       }
@@ -337,18 +385,25 @@ export async function generateMealPlan(
   }
 
   if (missingSlots.length > 0) {
-    // Try to fill missing slots with one small follow-up request
+    const missingByType = new Map<string, string[]>();
+    for (const { day, mealType } of missingSlots) {
+      if (!missingByType.has(mealType)) missingByType.set(mealType, []);
+      missingByType.get(mealType)!.push(day);
+    }
+
     try {
-      const fillDays = Array.from(new Set(missingSlots.map((s) => s.day)));
-      const fillMessage = buildUserMessage(fillDays, preferences, pantryItems, existingList)
-        + `\n\nONLY fill these specific slots: ${missingSlots.map((s) => `${s.day} ${s.mealType}`).join(", ")}. Do not generate recipes for any other slots.`;
-      const fillResult = await fetchBatch(apiKey, systemPrompt, fillMessage, "fill", existingRecipes);
-      allNewRecipes.push(...fillResult.newRecipes);
-      for (const [day, meals] of Object.entries(fillResult.mealPlan)) {
-        if (!mergedMealPlan[day]) mergedMealPlan[day] = {};
-        for (const [mealType, id] of Object.entries(meals)) {
-          if (!mergedMealPlan[day][mealType]) {
-            mergedMealPlan[day][mealType] = id;
+      for (const [mealType, days] of Array.from(missingByType.entries())) {
+        const systemPrompt = buildSystemPrompt(recipeSource, mealType);
+        const userMessage = buildUserMessage(days, mealType, preferences, pantryItems, existingList, usedDishNames);
+        const result = await fetchBatch(apiKey, systemPrompt, userMessage, `fill-${mealType}`, existingRecipes, onProgress);
+
+        allNewRecipes.push(...result.newRecipes);
+        for (const [day, meals] of Object.entries(result.mealPlan)) {
+          if (!mergedMealPlan[day]) mergedMealPlan[day] = {};
+          for (const [mealType, id] of Object.entries(meals)) {
+            if (!mergedMealPlan[day][mealType]) {
+              mergedMealPlan[day][mealType] = id;
+            }
           }
         }
       }
@@ -372,32 +427,31 @@ Return ONLY valid JSON matching this structure:
 Rules:
 - Keep ingredients to 5-12 items
 - Keep instructions to 3-8 steps
-- Valid units: pieces, slices, cups, tbsp, tsp, oz, lbs, grams, kg, ml, liters, loaf, head, cans, bunches, dozen, sticks
+- Valid units (USE ONLY THESE): whole, slices, cups, tbsp, tsp, oz, lbs, gallons, cans, cloves, bunches, sticks, loaf, head, dozen
 - Valid difficulties: Easy, Medium, Hard
 - Include realistic nutrition estimates per serving
 - Be creative and detailed in the description and instructions
-- Use realistic grocery-store quantities and units (e.g. "slices" for bread, "oz" for meat, "cans" for canned goods, "cups" for liquids)`;
+- Use grocery-store units: slices (bread), oz (meat/cheese), cans (canned goods), cups (liquids/chopped), gallons (milk), tbsp/tsp (herbs/spices), whole (produce/eggs)`;
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 180000);
 
   let response: Response;
   try {
-    response = await fetch("https://api.openai.com/v1/chat/completions", {
+    response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "gpt-5-nano",
+        model: "qwen/qwen3.6-plus:free",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: prompt },
         ],
+        max_tokens: 8192,
         response_format: { type: "json_object" },
-        max_completion_tokens: 16384,
-        reasoning_effort: "low",
       }),
       signal: controller.signal,
     });
@@ -413,7 +467,7 @@ Rules:
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
     throw new Error(
-      error.error?.message || `OpenAI API error: ${response.status}`
+      error.error?.message || `OpenRouter API error: ${response.status}`
     );
   }
 
@@ -422,6 +476,7 @@ Rules:
   try {
     let rawRecipe = data.choices?.[0]?.message?.content ?? "{}";
     rawRecipe = rawRecipe.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
+    rawRecipe = rawRecipe.replace(/:\s*(\d+)\s*\/\s*(\d+)/g, (_: string, n: string, d: string) => `: ${(parseInt(n) / parseInt(d)).toFixed(2)}`);
     recipe = JSON.parse(rawRecipe);
   } catch {
     throw new Error("Failed to parse recipe response from AI. Please try again.");
@@ -429,5 +484,6 @@ Rules:
   if (!recipe.title) {
     throw new Error("AI returned an unexpected response format. Please try again.");
   }
+  recipe.ingredients = normalizeRecipeIngredients(recipe.ingredients || []);
   return recipe;
 }
