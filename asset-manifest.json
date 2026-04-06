@@ -1,7 +1,7 @@
 {
   "files": {
     "main.css": "/5-Recipe-Builder/static/css/main.4efb37a3.css",
-    "main.js": "/5-Recipe-Builder/static/js/main.c6fa4905.js",
+    "main.js": "/5-Recipe-Builder/static/js/main.cd2d7f86.js",
     "static/js/52.581f1d63.chunk.js": "/5-Recipe-Builder/static/js/52.581f1d63.chunk.js",
     "static/js/82.4bf0ee4b.chunk.js": "/5-Recipe-Builder/static/js/82.4bf0ee4b.chunk.js",
     "static/js/265.5a2141be.chunk.js": "/5-Recipe-Builder/static/js/265.5a2141be.chunk.js",
@@ -10,6 +10,6 @@
   },
   "entrypoints": [
     "static/css/main.4efb37a3.css",
-    "static/js/main.c6fa4905.js"
+    "static/js/main.cd2d7f86.js"
   ]
 }
