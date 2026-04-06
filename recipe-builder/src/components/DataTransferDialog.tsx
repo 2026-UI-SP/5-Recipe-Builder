@@ -47,9 +47,13 @@ export default function DataTransferDialog({ open, mode, onClose }: DataTransfer
   // Generate chunks on export open
   useEffect(() => {
     if (open && mode === "export") {
-      const data = exportAppData();
-      setChunks(data);
-      setChunkIndex(0);
+      try {
+        const data = exportAppData();
+        setChunks(data);
+        setChunkIndex(0);
+      } catch {
+        setScanError("Failed to export data");
+      }
     }
   }, [open, mode]);
 
@@ -77,7 +81,13 @@ export default function DataTransferDialog({ open, mode, onClose }: DataTransfer
     const container = document.getElementById(scannerContainerId);
     if (!container) return;
 
-    const scanner = new Html5Qrcode(scannerContainerId);
+    let scanner: Html5Qrcode;
+    try {
+      scanner = new Html5Qrcode(scannerContainerId);
+    } catch {
+      setScanError("Could not initialize camera scanner");
+      return;
+    }
     scannerRef.current = scanner;
 
     try {
@@ -97,7 +107,6 @@ export default function DataTransferDialog({ open, mode, onClose }: DataTransfer
             next.set(parsed.part, decodedText);
             if (next.size === parsed.total) {
               setImportReady(true);
-              // Stop scanner when all parts collected
               scanner.stop().catch(() => {});
             }
             return next;
@@ -106,7 +115,8 @@ export default function DataTransferDialog({ open, mode, onClose }: DataTransfer
         () => {} // ignore scan failures (no QR in frame)
       );
     } catch (err: any) {
-      setScanError(err.message || "Could not access camera");
+      scannerRef.current = null;
+      setScanError(err?.message || "Could not access camera. Please grant camera permission and try again.");
     }
   }, []);
 
@@ -115,9 +125,10 @@ export default function DataTransferDialog({ open, mode, onClose }: DataTransfer
       startScanner();
     }
     return () => {
-      if (scannerRef.current) {
-        scannerRef.current.stop().catch(() => {});
-        scannerRef.current = null;
+      const scanner = scannerRef.current;
+      scannerRef.current = null;
+      if (scanner) {
+        try { scanner.stop().catch(() => {}); } catch { /* ignore */ }
       }
     };
   }, [open, mode, startScanner]);

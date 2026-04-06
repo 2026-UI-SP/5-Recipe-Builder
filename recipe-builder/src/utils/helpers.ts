@@ -255,7 +255,7 @@ export function buildShoppingListFromMealPlan(
   for (const dayMeals of Object.values(mealPlan)) {
     for (const recipeId of Object.values(dayMeals)) {
       const recipe = getRecipeById(recipeId);
-      if (!recipe) continue;
+      if (!recipe || !recipe.ingredients) continue;
       for (const ing of recipe.ingredients) {
         const normUnit = normalizeUnit(ing.quantity.unit);
         const normName = normalizeIngredientName(ing.food_item);

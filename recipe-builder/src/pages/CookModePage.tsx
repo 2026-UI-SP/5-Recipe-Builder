@@ -55,7 +55,9 @@ export default function CookModePage({
 
   const releaseWakeLock = useCallback(async () => {
     if (wakeLockRef.current) {
-      await wakeLockRef.current.release();
+      try {
+        await wakeLockRef.current.release();
+      } catch { /* ignore */ }
       wakeLockRef.current = null;
       setWakeLockActive(false);
     }
@@ -78,9 +80,9 @@ export default function CookModePage({
 
   // Re-acquire wake lock when tab becomes visible again
   useEffect(() => {
-    const handleVisibilityChange = async () => {
+    const handleVisibilityChange = () => {
       if (document.visibilityState === "visible" && timerRunning && wakeLockSupported) {
-        await requestWakeLock();
+        requestWakeLock();
       }
     };
     document.addEventListener("visibilitychange", handleVisibilityChange);

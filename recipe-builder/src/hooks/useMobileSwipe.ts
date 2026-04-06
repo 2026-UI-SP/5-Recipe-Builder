@@ -12,11 +12,12 @@ export default function useMobileSwipe(
   const touchStartX = useRef<number | null>(null);
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length === 0) return;
     touchStartX.current = e.touches[0].clientX;
   }, []);
 
   const handleTouchEnd = useCallback((e: React.TouchEvent) => {
-    if (touchStartX.current === null) return;
+    if (touchStartX.current === null || e.changedTouches.length === 0) return;
     const dx = e.changedTouches[0].clientX - touchStartX.current;
     if (dx < -minSwipeDistance) {
       onSwipeLeft();

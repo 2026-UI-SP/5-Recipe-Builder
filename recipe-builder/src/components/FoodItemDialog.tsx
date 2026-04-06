@@ -89,11 +89,21 @@ export default function FoodItemDialog({
           />
           <TextField
             label="Amount"
-            type="number"
+            inputMode="decimal"
             fullWidth
             value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleSave()}
+            onChange={(e) => {
+              const val = e.target.value;
+              if (val === "" || /^\d*\.?\d*$/.test(val)) setAmount(val);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") { handleSave(); return; }
+              if (
+                e.key.length === 1 &&
+                !e.ctrlKey && !e.metaKey &&
+                !/[\d.]/.test(e.key)
+              ) e.preventDefault();
+            }}
             inputProps={{ min: 0, step: "any" }}
           />
           <Select

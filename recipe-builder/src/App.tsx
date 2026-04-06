@@ -67,9 +67,12 @@ function App() {
     "darkMode",
     { defaultValue: null }
   );
-  const [apiKey, setApiKey] = useLocalStorageState<string>("openrouter-api-key", {
+  const envApiKey = process.env.REACT_APP_OPENROUTER_API_KEY ?? "";
+  const [localApiKey, setLocalApiKey] = useLocalStorageState<string>("openrouter-api-key", {
     defaultValue: "",
   });
+  const apiKey = envApiKey || localApiKey;
+  const apiKeyFromEnv = !!envApiKey;
 
   // --- Session-only state ---
   const [tab, setTab] = useState(0);
@@ -100,13 +103,13 @@ function App() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const openSettings = () => {
-    setKeyDraft(apiKey);
+    setKeyDraft(localApiKey);
     setShowKey(false);
     setSettingsOpen(true);
   };
 
   const saveSettings = () => {
-    setApiKey(keyDraft.trim());
+    setLocalApiKey(keyDraft.trim());
     setSettingsOpen(false);
     setSnackbar(keyDraft.trim() ? "Settings saved" : "Settings saved (API key cleared)");
   };
@@ -160,33 +163,41 @@ function App() {
             <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
               OpenRouter API Key
             </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Stored only in your browser's localStorage. Never sent anywhere except OpenRouter.
-            </Typography>
-            <TextField
-              label="API Key"
-              fullWidth
-              size="small"
-              value={keyDraft}
-              onChange={(e) => setKeyDraft(e.target.value)}
-              type={showKey ? "text" : "password"}
-              placeholder="sk-or-..."
-              slotProps={{
-                input: {
-                  endAdornment: (
-                    <InputAdornment position="end">
-                      <IconButton
-                        size="small"
-                        onClick={() => setShowKey(!showKey)}
-                        edge="end"
-                      >
-                        {showKey ? <VisibilityOffIcon /> : <VisibilityIcon />}
-                      </IconButton>
-                    </InputAdornment>
-                  ),
-                },
-              }}
-            />
+            {apiKeyFromEnv ? (
+              <Typography variant="body2" color="text.secondary">
+                API key is provided by the app and cannot be changed.
+              </Typography>
+            ) : (
+              <>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  Stored only in your browser's localStorage. Never sent anywhere except OpenRouter.
+                </Typography>
+                <TextField
+                  label="API Key"
+                  fullWidth
+                  size="small"
+                  value={keyDraft}
+                  onChange={(e) => setKeyDraft(e.target.value)}
+                  type={showKey ? "text" : "password"}
+                  placeholder="sk-or-..."
+                  slotProps={{
+                    input: {
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <IconButton
+                            size="small"
+                            onClick={() => setShowKey(!showKey)}
+                            edge="end"
+                          >
+                            {showKey ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                          </IconButton>
+                        </InputAdornment>
+                      ),
+                    },
+                  }}
+                />
+              </>
+            )}
           </Box>
 
           <Divider />
