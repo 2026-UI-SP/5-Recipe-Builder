@@ -1,15 +1,15 @@
 {
   "files": {
     "main.css": "/5-Recipe-Builder/static/css/main.4efb37a3.css",
-    "main.js": "/5-Recipe-Builder/static/js/main.4a2abe97.js",
-    "static/js/52.9da4d3cb.chunk.js": "/5-Recipe-Builder/static/js/52.9da4d3cb.chunk.js",
-    "static/js/82.0f1c31a7.chunk.js": "/5-Recipe-Builder/static/js/82.0f1c31a7.chunk.js",
-    "static/js/239.b2b59f90.chunk.js": "/5-Recipe-Builder/static/js/239.b2b59f90.chunk.js",
-    "static/js/206.1b0d3641.chunk.js": "/5-Recipe-Builder/static/js/206.1b0d3641.chunk.js",
+    "main.js": "/5-Recipe-Builder/static/js/main.c6fa4905.js",
+    "static/js/52.581f1d63.chunk.js": "/5-Recipe-Builder/static/js/52.581f1d63.chunk.js",
+    "static/js/82.4bf0ee4b.chunk.js": "/5-Recipe-Builder/static/js/82.4bf0ee4b.chunk.js",
+    "static/js/265.5a2141be.chunk.js": "/5-Recipe-Builder/static/js/265.5a2141be.chunk.js",
+    "static/js/206.f42a4f48.chunk.js": "/5-Recipe-Builder/static/js/206.f42a4f48.chunk.js",
     "index.html": "/5-Recipe-Builder/index.html"
   },
   "entrypoints": [
     "static/css/main.4efb37a3.css",
-    "static/js/main.4a2abe97.js"
+    "static/js/main.c6fa4905.js"
   ]
 }
