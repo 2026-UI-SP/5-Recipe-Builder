@@ -238,7 +238,7 @@ async function fetchBatch(
           Authorization: `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
-          model: "qwen/qwen3.6-plus:free",
+          model: "nvidia/nemotron-3-super-120b-a12b:free",
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userMessage },
@@ -271,16 +271,34 @@ async function fetchBatch(
   let content: any;
   try {
     let raw = data.choices?.[0]?.message?.content ?? "{}";
+    console.log(`[${batchId}] Raw AI response:`, raw.slice(0, 500));
+    // Strip thinking blocks (some reasoning models wrap output in <think>...</think>)
+    raw = raw.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
     raw = raw.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
     // Fix fractions like 1/4, 1/2, 3/4 that the model outputs as bare expressions
     raw = raw.replace(/:\s*(\d+)\s*\/\s*(\d+)/g, (_: string, n: string, d: string) => `: ${(parseInt(n) / parseInt(d)).toFixed(2)}`);
     content = JSON.parse(raw);
-  } catch {
+    console.log(`[${batchId}] Parsed keys:`, Object.keys(content));
+  } catch (e) {
+    console.error(`[${batchId}] Parse error:`, e);
     throw new Error(`Failed to parse batch ${batchId} response from AI.`);
   }
 
+  // Normalize common key variations from different models
+  if (!content.meal_plan) {
+    const altKeys = ["mealPlan", "meal-plan", "mealplan", "plan"];
+    for (const key of altKeys) {
+      if (content[key] && typeof content[key] === "object") {
+        content.meal_plan = content[key];
+        break;
+      }
+    }
+  }
   if (!content.meal_plan) {
     throw new Error(`AI returned unexpected format for batch ${batchId}.`);
+  }
+  if (!content.new_recipes && content.newRecipes) {
+    content.new_recipes = content.newRecipes;
   }
 
   const newRecipes: Recipe[] = (content.new_recipes || []).map(
@@ -445,7 +463,7 @@ Rules:
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "qwen/qwen3.6-plus:free",
+        model: "nvidia/nemotron-3-super-120b-a12b:free",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: prompt },
