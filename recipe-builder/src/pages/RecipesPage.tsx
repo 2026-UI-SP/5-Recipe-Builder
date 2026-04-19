@@ -129,24 +129,6 @@ export default function RecipesPage({
     onSnackbar("Recipe deleted");
   };
 
-  const handleOpenEdit = (recipe: Recipe) => {
-    setEditForm({
-      id: recipe.id,
-      title: recipe.title,
-      description: recipe.description,
-      ingredients: JSON.parse(JSON.stringify(recipe.ingredients)),
-      instructions: JSON.parse(JSON.stringify(recipe.instructions)),
-      prep_time_minutes: recipe.prep_time_minutes,
-      cook_time_minutes: recipe.cook_time_minutes,
-      servings: recipe.servings,
-      cuisine: recipe.cuisine,
-      difficulty: recipe.difficulty,
-      dietary_tags: [...recipe.dietary_tags],
-      nutrition_info: recipe.nutrition_info ? { ...recipe.nutrition_info } : undefined,
-    });
-    setEditOpen(true);
-  };
-
   // --- AI generation ---
   const handleAiGenerate = async () => {
     if (!aiPrompt.trim()) return;
