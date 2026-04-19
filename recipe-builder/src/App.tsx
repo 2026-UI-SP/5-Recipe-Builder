@@ -26,6 +26,11 @@ import {
   Switch,
   FormControlLabel,
   Divider,
+  ToggleButtonGroup,
+  ToggleButton,
+  Alert,
+  Link,
+  MenuItem,
 } from "@mui/material";
 import { ThemeProvider } from "@mui/material/styles";
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
@@ -38,6 +43,7 @@ import VisibilityIcon from "@mui/icons-material/Visibility";
 import VisibilityOffIcon from "@mui/icons-material/VisibilityOff";
 import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
 import { FoodItem, Recipe, MealPlan } from "./data/types";
+import { AiProvider, OPENROUTER_MODEL_OPTIONS, DEFAULT_OPENROUTER_MODEL } from "./utils/openai";
 import { buildTheme } from "./config/theme";
 import sampleRecipes from "./data/sampleRecipes";
 import DashboardPage from "./pages/DashboardPage";
@@ -67,12 +73,24 @@ function App() {
     "darkMode",
     { defaultValue: null }
   );
-  const envApiKey = process.env.REACT_APP_OPENROUTER_API_KEY ?? "";
-  const [localApiKey, setLocalApiKey] = useLocalStorageState<string>("openrouter-api-key", {
+  const [aiProvider, setAiProvider] = useLocalStorageState<AiProvider>("ai-provider", {
+    defaultValue: "openai",
+  });
+  const [openaiKey, setOpenaiKey] = useLocalStorageState<string>("openai-api-key", {
     defaultValue: "",
   });
-  const apiKey = envApiKey || localApiKey;
-  const apiKeyFromEnv = !!envApiKey;
+  const [openrouterKey, setOpenrouterKey] = useLocalStorageState<string>("openrouter-api-key", {
+    defaultValue: "",
+  });
+  const [openrouterModel, setOpenrouterModel] = useLocalStorageState<string>("openrouter-model", {
+    defaultValue: DEFAULT_OPENROUTER_MODEL,
+  });
+  React.useEffect(() => {
+    if (!OPENROUTER_MODEL_OPTIONS.some((o) => o.value === openrouterModel)) {
+      setOpenrouterModel(DEFAULT_OPENROUTER_MODEL);
+    }
+  }, [openrouterModel, setOpenrouterModel]);
+  const apiKey = aiProvider === "openrouter" ? openrouterKey : openaiKey;
 
   // --- Session-only state ---
   const [tab, setTab] = useState(0);
@@ -81,7 +99,10 @@ function App() {
   const [snackbar, setSnackbar] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [showKey, setShowKey] = useState(false);
-  const [keyDraft, setKeyDraft] = useState("");
+  const [openaiKeyDraft, setOpenaiKeyDraft] = useState("");
+  const [openrouterKeyDraft, setOpenrouterKeyDraft] = useState("");
+  const [providerDraft, setProviderDraft] = useState<AiProvider>("openai");
+  const [openrouterModelDraft, setOpenrouterModelDraft] = useState(DEFAULT_OPENROUTER_MODEL);
   const [hasSeenHelp, setHasSeenHelp] = useLocalStorageState<boolean>("has-seen-help", {
     defaultValue: false,
   });
@@ -103,15 +124,30 @@ function App() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const openSettings = () => {
-    setKeyDraft(localApiKey);
+    setProviderDraft(aiProvider);
+    setOpenaiKeyDraft(openaiKey);
+    setOpenrouterKeyDraft(openrouterKey);
+    setOpenrouterModelDraft(openrouterModel);
     setShowKey(false);
     setSettingsOpen(true);
   };
 
+  const keyDraft = providerDraft === "openrouter" ? openrouterKeyDraft : openaiKeyDraft;
+  const setKeyDraft = (value: string) => {
+    if (providerDraft === "openrouter") setOpenrouterKeyDraft(value);
+    else setOpenaiKeyDraft(value);
+  };
+
   const saveSettings = () => {
-    setLocalApiKey(keyDraft.trim());
+    const openaiTrimmed = openaiKeyDraft.trim();
+    const openrouterTrimmed = openrouterKeyDraft.trim();
+    setOpenaiKey(openaiTrimmed);
+    setOpenrouterKey(openrouterTrimmed);
+    setOpenrouterModel(openrouterModelDraft);
+    setAiProvider(providerDraft);
     setSettingsOpen(false);
-    setSnackbar(keyDraft.trim() ? "Settings saved" : "Settings saved (API key cleared)");
+    const activeKey = providerDraft === "openrouter" ? openrouterTrimmed : openaiTrimmed;
+    setSnackbar(activeKey ? "Settings saved" : "Settings saved (API key cleared)");
   };
 
   const snackbarElement = (
@@ -158,46 +194,88 @@ function App() {
 
           <Divider />
 
-          {/* API Key */}
+          {/* AI Provider + API Key */}
           <Box>
             <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-              OpenRouter API Key
+              AI Provider
             </Typography>
-            {apiKeyFromEnv ? (
-              <Typography variant="body2" color="text.secondary">
-                API key is provided by the app and cannot be changed.
-              </Typography>
-            ) : (
+            <ToggleButtonGroup
+              value={providerDraft}
+              exclusive
+              size="small"
+              onChange={(_, v) => v && setProviderDraft(v as AiProvider)}
+              sx={{ mb: 2 }}
+            >
+              <ToggleButton value="openai">OpenAI (paid)</ToggleButton>
+              <ToggleButton value="openrouter">OpenRouter (free)</ToggleButton>
+            </ToggleButtonGroup>
+            {providerDraft === "openrouter" ? (
               <>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                  Stored only in your browser's localStorage. Never sent anywhere except OpenRouter.
-                </Typography>
+                <Alert severity="warning" sx={{ mb: 2 }}>
+                  Free OpenRouter models are <strong>slow and unreliable</strong>. Expect long waits,
+                  rate limits, and occasional failures. Get a free key at{" "}
+                  <Link href="https://openrouter.ai/keys" target="_blank" rel="noopener">
+                    openrouter.ai/keys
+                  </Link>
+                  .
+                </Alert>
                 <TextField
-                  label="API Key"
+                  select
+                  label="Model"
                   fullWidth
                   size="small"
-                  value={keyDraft}
-                  onChange={(e) => setKeyDraft(e.target.value)}
-                  type={showKey ? "text" : "password"}
-                  placeholder="sk-or-..."
-                  slotProps={{
-                    input: {
-                      endAdornment: (
-                        <InputAdornment position="end">
-                          <IconButton
-                            size="small"
-                            onClick={() => setShowKey(!showKey)}
-                            edge="end"
-                          >
-                            {showKey ? <VisibilityOffIcon /> : <VisibilityIcon />}
-                          </IconButton>
-                        </InputAdornment>
-                      ),
-                    },
-                  }}
-                />
+                  value={openrouterModelDraft}
+                  onChange={(e) => setOpenrouterModelDraft(e.target.value)}
+                  helperText="DeepSeek and Gemini handle JSON best. Swap here if one model fails on you."
+                  sx={{ mb: 2 }}
+                >
+                  {OPENROUTER_MODEL_OPTIONS.map((opt) => (
+                    <MenuItem key={opt.value} value={opt.value}>
+                      <Box>
+                        <Typography variant="body2">{opt.label}</Typography>
+                        <Typography variant="caption" color="text.secondary">{opt.note}</Typography>
+                      </Box>
+                    </MenuItem>
+                  ))}
+                </TextField>
               </>
+            ) : (
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Uses your paid OpenAI account. Fast and reliable. Get a key at{" "}
+                <Link href="https://platform.openai.com/api-keys" target="_blank" rel="noopener">
+                  platform.openai.com/api-keys
+                </Link>
+                .
+              </Typography>
             )}
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Stored only in your browser's localStorage. Never sent anywhere except{" "}
+              {providerDraft === "openrouter" ? "OpenRouter" : "OpenAI"}.
+            </Typography>
+            <TextField
+              label={`${providerDraft === "openrouter" ? "OpenRouter" : "OpenAI"} API Key`}
+              fullWidth
+              size="small"
+              value={keyDraft}
+              onChange={(e) => setKeyDraft(e.target.value)}
+              type={showKey ? "text" : "password"}
+              placeholder={providerDraft === "openrouter" ? "sk-or-..." : "sk-..."}
+              slotProps={{
+                input: {
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton
+                        size="small"
+                        onClick={() => setShowKey(!showKey)}
+                        edge="end"
+                      >
+                        {showKey ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                },
+              }}
+            />
           </Box>
 
           <Divider />
@@ -309,6 +387,8 @@ function App() {
               setPantry={setPantry}
               setShoppingList={setShoppingList}
               apiKey={apiKey}
+              aiProvider={aiProvider}
+              openrouterModel={openrouterModel}
               onStartCookMode={setCookingRecipe}
               onOpenSettings={openSettings}
               onSnackbar={setSnackbar}
@@ -327,6 +407,8 @@ function App() {
               onStartCookMode={setCookingRecipe}
               onSnackbar={setSnackbar}
               apiKey={apiKey}
+              aiProvider={aiProvider}
+              openrouterModel={openrouterModel}
             />
           )}
           {tab === 2 && (

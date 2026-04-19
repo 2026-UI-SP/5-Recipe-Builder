@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   Typography,
   Box,
@@ -60,6 +60,39 @@ const EMPTY_INGREDIENT: RecipeIngredient = {
   food_item: "",
   quantity: { value: 0, unit: "pieces" },
 };
+
+/**
+ * Text input for a quantity that tolerates partial decimal entries like "0." or ".5".
+ * Holds its own draft string and only syncs a parsed float upward.
+ */
+function QtyInput({ value, onChange, sx }: { value: number; onChange: (n: number) => void; sx?: any }) {
+  const [text, setText] = useState(value ? String(value) : "");
+
+  useEffect(() => {
+    const parsed = parseFloat(text);
+    if (value !== (isNaN(parsed) ? 0 : parsed)) {
+      setText(value ? String(value) : "");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+
+  return (
+    <TextField
+      size="small"
+      placeholder="Qty"
+      inputMode="decimal"
+      value={text}
+      onChange={(e) => {
+        const val = e.target.value;
+        if (val === "" || /^\d*\.?\d*$/.test(val)) {
+          setText(val);
+          onChange(val === "" || val === "." ? 0 : parseFloat(val) || 0);
+        }
+      }}
+      sx={sx}
+    />
+  );
+}
 
 export default function RecipeFormDialog({
   open,
@@ -189,24 +222,34 @@ export default function RecipeFormDialog({
             <TextField
               label="Prep (min)"
               type="number"
-              value={form.prep_time_minutes || ""}
-              onChange={(e) => setForm((f) => ({ ...f, prep_time_minutes: parseInt(e.target.value) || 0 }))}
+              value={form.prep_time_minutes === 0 ? "" : form.prep_time_minutes}
+              onChange={(e) => {
+                const v = e.target.value;
+                setForm((f) => ({ ...f, prep_time_minutes: v === "" ? 0 : Math.max(0, parseInt(v) || 0) }));
+              }}
               inputProps={{ min: 0 }}
               sx={{ flex: 1, minWidth: isMobile ? "45%" : "auto" }}
             />
             <TextField
               label="Cook (min)"
               type="number"
-              value={form.cook_time_minutes || ""}
-              onChange={(e) => setForm((f) => ({ ...f, cook_time_minutes: parseInt(e.target.value) || 0 }))}
+              value={form.cook_time_minutes === 0 ? "" : form.cook_time_minutes}
+              onChange={(e) => {
+                const v = e.target.value;
+                setForm((f) => ({ ...f, cook_time_minutes: v === "" ? 0 : Math.max(0, parseInt(v) || 0) }));
+              }}
               inputProps={{ min: 0 }}
               sx={{ flex: 1, minWidth: isMobile ? "45%" : "auto" }}
             />
             <TextField
               label="Servings"
               type="number"
-              value={form.servings || ""}
-              onChange={(e) => setForm((f) => ({ ...f, servings: parseInt(e.target.value) || 1 }))}
+              value={form.servings === 0 ? "" : form.servings}
+              onChange={(e) => {
+                const v = e.target.value;
+                setForm((f) => ({ ...f, servings: v === "" ? 0 : Math.max(0, parseInt(v) || 0) }));
+              }}
+              onBlur={() => setForm((f) => ({ ...f, servings: f.servings < 1 ? 1 : f.servings }))}
               inputProps={{ min: 1 }}
               sx={{ flex: 1, minWidth: isMobile ? "45%" : "auto" }}
             />
@@ -239,22 +282,18 @@ export default function RecipeFormDialog({
                         }
                       />
                       <Stack direction="row" spacing={1} alignItems="center">
-                        <TextField
-                          size="small"
-                          type="number"
-                          placeholder="Qty"
-                          value={ing.quantity.value || ""}
-                          onChange={(e) =>
+                        <QtyInput
+                          value={ing.quantity.value}
+                          onChange={(n) =>
                             setForm((f) => ({
                               ...f,
                               ingredients: f.ingredients.map((item, i) =>
                                 i === idx
-                                  ? { ...item, quantity: { ...item.quantity, value: parseFloat(e.target.value) || 0 } }
+                                  ? { ...item, quantity: { ...item.quantity, value: n } }
                                   : item
                               ),
                             }))
                           }
-                          inputProps={{ min: 0, step: "any" }}
                           sx={{ flex: 1 }}
                         />
                         <Select
@@ -276,7 +315,7 @@ export default function RecipeFormDialog({
                             <MenuItem key={u} value={u}>{u}</MenuItem>
                           ))}
                         </Select>
-                        <IconButton size="small" onClick={() => removeIngredient(idx)} disabled={form.ingredients.length <= 1}>
+                        <IconButton size="small" color="error" onClick={() => removeIngredient(idx)} disabled={form.ingredients.length <= 1}>
                           <DeleteOutlineIcon fontSize="small" />
                         </IconButton>
                       </Stack>
@@ -297,22 +336,18 @@ export default function RecipeFormDialog({
                         }
                         sx={{ flex: 2 }}
                       />
-                      <TextField
-                        size="small"
-                        type="number"
-                        placeholder="Qty"
-                        value={ing.quantity.value || ""}
-                        onChange={(e) =>
+                      <QtyInput
+                        value={ing.quantity.value}
+                        onChange={(n) =>
                           setForm((f) => ({
                             ...f,
                             ingredients: f.ingredients.map((item, i) =>
                               i === idx
-                                ? { ...item, quantity: { ...item.quantity, value: parseFloat(e.target.value) || 0 } }
+                                ? { ...item, quantity: { ...item.quantity, value: n } }
                                 : item
                             ),
                           }))
                         }
-                        inputProps={{ min: 0, step: "any" }}
                         sx={{ flex: 0.7 }}
                       />
                       <Select
@@ -334,7 +369,7 @@ export default function RecipeFormDialog({
                           <MenuItem key={u} value={u}>{u}</MenuItem>
                         ))}
                       </Select>
-                      <IconButton size="small" onClick={() => removeIngredient(idx)} disabled={form.ingredients.length <= 1}>
+                      <IconButton size="small" color="error" onClick={() => removeIngredient(idx)} disabled={form.ingredients.length <= 1}>
                         <DeleteOutlineIcon fontSize="small" />
                       </IconButton>
                     </Stack>
@@ -369,7 +404,7 @@ export default function RecipeFormDialog({
                       }))
                     }
                   />
-                  <IconButton size="small" onClick={() => removeStep(idx)} disabled={form.instructions.length <= 1}>
+                  <IconButton size="small" color="error" onClick={() => removeStep(idx)} disabled={form.instructions.length <= 1}>
                     <DeleteOutlineIcon fontSize="small" />
                   </IconButton>
                 </Stack>

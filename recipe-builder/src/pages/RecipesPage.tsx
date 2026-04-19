@@ -12,7 +12,7 @@ import SearchIcon from "@mui/icons-material/Search";
 import AddIcon from "@mui/icons-material/Add";
 import { Recipe, FoodItem, MealPlan } from "../data/types";
 import { deductIngredients, findMissingIngredients } from "../utils/helpers";
-import { generateSingleRecipe } from "../utils/openai";
+import { generateSingleRecipe, AiProvider } from "../utils/openai";
 import RecipeGrid from "../components/RecipeGrid";
 import RecipeDetail from "../components/RecipeDetail";
 import RecipeFormDialog, { RecipeFormState } from "../components/RecipeFormDialog";
@@ -29,6 +29,8 @@ interface RecipesPageProps {
   onStartCookMode: (recipe: Recipe) => void;
   onSnackbar: (message: string) => void;
   apiKey: string;
+  aiProvider: AiProvider;
+  openrouterModel: string;
 }
 
 function makeEmptyForm(): RecipeFormState {
@@ -57,6 +59,8 @@ export default function RecipesPage({
   onStartCookMode,
   onSnackbar,
   apiKey,
+  aiProvider,
+  openrouterModel,
 }: RecipesPageProps) {
   const [search, setSearch] = useState("");
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
@@ -147,13 +151,13 @@ export default function RecipesPage({
   const handleAiGenerate = async () => {
     if (!aiPrompt.trim()) return;
     if (!apiKey) {
-      setAiError("Please set your OpenRouter API key in Settings first.");
+      setAiError(`Please set your ${aiProvider === "openrouter" ? "OpenRouter" : "OpenAI"} API key in Settings first.`);
       return;
     }
     setAiLoading(true);
     setAiError("");
     try {
-      const generated = await generateSingleRecipe(apiKey, aiPrompt.trim());
+      const generated = await generateSingleRecipe(apiKey, aiProvider, openrouterModel, aiPrompt.trim());
       setAddForm({
         title: generated.title || "",
         description: generated.description || "",
@@ -240,11 +244,18 @@ export default function RecipesPage({
       <RecipeDetail
         recipe={selectedRecipe}
         pantry={pantry}
+        apiKey={apiKey}
+        aiProvider={aiProvider}
+        openrouterModel={openrouterModel}
         onBack={() => setSelectedRecipe(null)}
         onToggleFavorite={toggleFavorite}
         onIMadeThis={handleIMadeThis}
         onAddToShoppingList={handleAddToShoppingList}
         onStartCookMode={onStartCookMode}
+        onUpdateRecipe={(updated) => {
+          setRecipes((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+          setSelectedRecipe(updated);
+        }}
         onSnackbar={onSnackbar}
       />
     );
@@ -252,10 +263,7 @@ export default function RecipesPage({
 
   return (
     <Box>
-      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
-        {recipes.length > 0 && (
-          <Chip label={`${recipes.length} recipe${recipes.length !== 1 ? "s" : ""}`} size="small" variant="outlined" />
-        )}
+      <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
         <Button
           variant="contained"
           startIcon={<AddIcon />}
@@ -264,6 +272,10 @@ export default function RecipesPage({
         >
           Add
         </Button>
+        <Box sx={{ flexGrow: 1 }} />
+        {recipes.length > 0 && (
+          <Chip label={`${recipes.length} recipe${recipes.length !== 1 ? "s" : ""}`} size="small" variant="outlined" />
+        )}
       </Stack>
 
       {recipes.length > 3 && (
@@ -303,7 +315,6 @@ export default function RecipesPage({
           onIMadeThis={handleIMadeThis}
           onAddToShoppingList={handleAddToShoppingList}
           onDelete={handleDeleteRecipe}
-          onEdit={handleOpenEdit}
         />
       )}
 

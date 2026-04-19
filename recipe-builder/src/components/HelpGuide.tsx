@@ -31,7 +31,7 @@ export const TOUR_STEPS: TourStep[] = [
   {
     target: "tour-settings-btn",
     title: "Settings",
-    body: "Tap here to add your OpenRouter API key. This powers AI meal plan generation. Your key stays in your browser and is never shared.",
+    body: "Tap here to choose an AI provider (OpenAI or free OpenRouter) and add your API key. This powers AI meal plan generation. Your key stays in your browser and is never shared.",
     tab: -1,
     placement: "below",
   },

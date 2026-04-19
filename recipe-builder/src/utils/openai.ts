@@ -1,6 +1,36 @@
 import { FoodItem, Recipe, MealPlan, MealPlanPreferences } from "../data/types";
 import { normalizeRecipeIngredients } from "./helpers";
 
+export type AiProvider = "openai" | "openrouter";
+
+function providerEndpoint(provider: AiProvider): string {
+  return provider === "openrouter"
+    ? "https://openrouter.ai/api/v1/chat/completions"
+    : "https://api.openai.com/v1/chat/completions";
+}
+
+export const DEFAULT_OPENROUTER_MODEL = "google/gemma-4-31b-it:free";
+
+export const OPENROUTER_MODEL_OPTIONS: { value: string; label: string; note: string }[] = [
+  { value: "google/gemma-4-31b-it:free", label: "Gemma 4 31B", note: "Native function calling, reliable JSON" },
+  { value: "google/gemma-4-26b-a4b-it:free", label: "Gemma 4 26B (MoE)", note: "Efficient MoE with structured outputs" },
+  { value: "minimax/minimax-m2.5:free", label: "MiniMax M2.5", note: "Strong structured responses" },
+  { value: "arcee-ai/trinity-large-preview:free", label: "Trinity 400B (MoE)", note: "Big model for complex reasoning" },
+  { value: "nvidia/nemotron-3-super-120b-a12b:free", label: "Nemotron 120B", note: "Large but weaker at JSON" },
+  { value: "nvidia/nemotron-3-nano-30b-a3b:free", label: "Nemotron Nano 30B", note: "Smaller, faster Nemotron" },
+];
+
+function providerModel(provider: AiProvider, openrouterModel?: string): string {
+  if (provider === "openrouter") {
+    return openrouterModel || DEFAULT_OPENROUTER_MODEL;
+  }
+  return "gpt-5-nano";
+}
+
+function providerLabel(provider: AiProvider): string {
+  return provider === "openrouter" ? "OpenRouter" : "OpenAI";
+}
+
 const DAYS_OF_WEEK = [
   "Monday",
   "Tuesday",
@@ -218,6 +248,8 @@ async function fetchWithRetry(
 
 async function fetchBatch(
   apiKey: string,
+  provider: AiProvider,
+  openrouterModel: string | undefined,
   systemPrompt: string,
   userMessage: string,
   batchId: string,
@@ -230,7 +262,7 @@ async function fetchBatch(
   let response: Response;
   try {
     response = await fetchWithRetry(
-      "https://openrouter.ai/api/v1/chat/completions",
+      providerEndpoint(provider),
       {
         method: "POST",
         headers: {
@@ -238,13 +270,13 @@ async function fetchBatch(
           Authorization: `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
-          model: "nvidia/nemotron-3-super-120b-a12b:free",
+          model: providerModel(provider, openrouterModel),
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userMessage },
           ],
           max_tokens: 8192,
-          response_format: { type: "json_object" },
+          ...(provider === "openai" ? { response_format: { type: "json_object" } } : {}),
         }),
         signal: controller.signal,
       },
@@ -263,7 +295,7 @@ async function fetchBatch(
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
     throw new Error(
-      error.error?.message || `OpenRouter API error: ${response.status}`
+      error.error?.message || `${providerLabel(provider)} API error: ${response.status}`
     );
   }
 
@@ -330,6 +362,8 @@ let _generating = false;
 
 export async function generateMealPlan(
   apiKey: string,
+  provider: AiProvider,
+  openrouterModel: string | undefined,
   preferences: MealPlanPreferences,
   pantryItems: FoodItem[],
   existingRecipes: Recipe[],
@@ -338,7 +372,7 @@ export async function generateMealPlan(
   if (_generating) throw new Error("Generation already in progress.");
   _generating = true;
   try {
-    return await _generateMealPlan(apiKey, preferences, pantryItems, existingRecipes, onProgress);
+    return await _generateMealPlan(apiKey, provider, openrouterModel, preferences, pantryItems, existingRecipes, onProgress);
   } finally {
     _generating = false;
   }
@@ -346,6 +380,8 @@ export async function generateMealPlan(
 
 async function _generateMealPlan(
   apiKey: string,
+  provider: AiProvider,
+  openrouterModel: string | undefined,
   preferences: MealPlanPreferences,
   pantryItems: FoodItem[],
   existingRecipes: Recipe[],
@@ -379,7 +415,7 @@ async function _generateMealPlan(
     onProgress?.(`Generating ${mealType}...`);
     const systemPrompt = buildSystemPrompt(recipeSource, mealType);
     const userMessage = buildUserMessage(allDays, mealType, preferences, pantryItems, existingList, usedDishNames);
-    const result = await fetchBatch(apiKey, systemPrompt, userMessage, mealType, existingRecipes, onProgress);
+    const result = await fetchBatch(apiKey, provider, openrouterModel, systemPrompt, userMessage, mealType, existingRecipes, onProgress);
 
     allNewRecipes.push(...result.newRecipes);
     for (const r of result.newRecipes) {
@@ -413,7 +449,7 @@ async function _generateMealPlan(
       for (const [mealType, days] of Array.from(missingByType.entries())) {
         const systemPrompt = buildSystemPrompt(recipeSource, mealType);
         const userMessage = buildUserMessage(days, mealType, preferences, pantryItems, existingList, usedDishNames);
-        const result = await fetchBatch(apiKey, systemPrompt, userMessage, `fill-${mealType}`, existingRecipes, onProgress);
+        const result = await fetchBatch(apiKey, provider, openrouterModel, systemPrompt, userMessage, `fill-${mealType}`, existingRecipes, onProgress);
 
         allNewRecipes.push(...result.newRecipes);
         for (const [day, meals] of Object.entries(result.mealPlan)) {
@@ -435,6 +471,8 @@ async function _generateMealPlan(
 
 export async function generateSingleRecipe(
   apiKey: string,
+  provider: AiProvider,
+  openrouterModel: string | undefined,
   prompt: string
 ): Promise<Omit<Recipe, "id">> {
   const systemPrompt = `You are an expert chef. The user will describe a recipe they want. Generate a complete recipe based on their description.
@@ -456,20 +494,20 @@ Rules:
 
   let response: Response;
   try {
-    response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    response = await fetch(providerEndpoint(provider), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "nvidia/nemotron-3-super-120b-a12b:free",
+        model: providerModel(provider, openrouterModel),
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: prompt },
         ],
         max_tokens: 8192,
-        response_format: { type: "json_object" },
+        ...(provider === "openai" ? { response_format: { type: "json_object" } } : {}),
       }),
       signal: controller.signal,
     });
@@ -485,7 +523,7 @@ Rules:
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
     throw new Error(
-      error.error?.message || `OpenRouter API error: ${response.status}`
+      error.error?.message || `${providerLabel(provider)} API error: ${response.status}`
     );
   }
 
@@ -504,4 +542,98 @@ Rules:
   }
   recipe.ingredients = normalizeRecipeIngredients(recipe.ingredients || []);
   return recipe;
+}
+
+export async function modifyRecipe(
+  apiKey: string,
+  provider: AiProvider,
+  openrouterModel: string | undefined,
+  recipe: Recipe,
+  modificationPrompt: string
+): Promise<Omit<Recipe, "id">> {
+  const systemPrompt = `You are an expert chef. The user will provide an existing recipe (as JSON) along with a modification request. Apply the requested changes and return the FULL updated recipe as valid JSON only — no text before or after.
+
+Return ONLY valid JSON matching this structure:
+{"title":"Name","description":"One sentence","ingredients":[{"food_item":"X","quantity":{"value":1,"unit":"cups"},"preparation":"diced"}],"instructions":[{"step_number":1,"description":"Step.","duration_minutes":5}],"prep_time_minutes":10,"cook_time_minutes":20,"total_time_minutes":30,"servings":4,"cuisine":"Italian","dietary_tags":[],"difficulty":"Easy","nutrition_info":{"calories":400,"protein_grams":20,"fat_grams":15,"carbohydrates_grams":45}}
+
+Rules:
+- Preserve the fields the user did not ask to change
+- Update nutrition and times to reflect the modification
+- Valid units (USE ONLY THESE): whole, slices, cups, tbsp, tsp, oz, lbs, gallons, cans, cloves, bunches, sticks, loaf, head, dozen
+- Valid difficulties: Easy, Medium, Hard
+- quantity values MUST be decimal numbers, not fractions (use 0.5 instead of 1/2)`;
+
+  const originalRecipe = {
+    title: recipe.title,
+    description: recipe.description,
+    ingredients: recipe.ingredients,
+    instructions: recipe.instructions,
+    prep_time_minutes: recipe.prep_time_minutes,
+    cook_time_minutes: recipe.cook_time_minutes,
+    total_time_minutes: recipe.total_time_minutes,
+    servings: recipe.servings,
+    cuisine: recipe.cuisine,
+    difficulty: recipe.difficulty,
+    dietary_tags: recipe.dietary_tags,
+    nutrition_info: recipe.nutrition_info,
+  };
+
+  const userMessage = `Original recipe:\n${JSON.stringify(originalRecipe)}\n\nModification request: ${modificationPrompt}`;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 180000);
+
+  let response: Response;
+  try {
+    response = await fetch(providerEndpoint(provider), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: providerModel(provider, openrouterModel),
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userMessage },
+        ],
+        max_tokens: 8192,
+        ...(provider === "openai" ? { response_format: { type: "json_object" } } : {}),
+      }),
+      signal: controller.signal,
+    });
+  } catch (err: any) {
+    clearTimeout(timeout);
+    if (err.name === "AbortError") {
+      throw new Error("Request timed out. Try a simpler modification.");
+    }
+    throw err;
+  }
+  clearTimeout(timeout);
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(
+      error.error?.message || `${providerLabel(provider)} API error: ${response.status}`
+    );
+  }
+
+  const data = await response.json();
+  let updated: any;
+  try {
+    let raw = data.choices?.[0]?.message?.content ?? "{}";
+    raw = raw.replace(/^```(?:json)?\s*\n?/i, "").replace(/\n?```\s*$/i, "").trim();
+    raw = raw.replace(/:\s*(\d+)\s*\/\s*(\d+)/g, (_: string, n: string, d: string) => `: ${(parseInt(n) / parseInt(d)).toFixed(2)}`);
+    updated = JSON.parse(raw);
+  } catch {
+    throw new Error("Failed to parse modification response from AI. Please try again.");
+  }
+  if (!updated.title) {
+    throw new Error("AI returned an unexpected response format. Please try again.");
+  }
+  updated.ingredients = normalizeRecipeIngredients(updated.ingredients || []);
+  if (!updated.total_time_minutes) {
+    updated.total_time_minutes = (updated.prep_time_minutes || 0) + (updated.cook_time_minutes || 0);
+  }
+  return updated;
 }

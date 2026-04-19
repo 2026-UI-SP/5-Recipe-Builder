@@ -16,8 +16,8 @@ import {
 } from "@mui/material";
 import RemoveIcon from "@mui/icons-material/Remove";
 import AddIcon from "@mui/icons-material/Add";
-import FavoriteIcon from "@mui/icons-material/Favorite";
-import FavoriteBorderIcon from "@mui/icons-material/FavoriteBorder";
+import StarIcon from "@mui/icons-material/Star";
+import StarBorderIcon from "@mui/icons-material/StarBorder";
 import TimerIcon from "@mui/icons-material/Timer";
 import PeopleIcon from "@mui/icons-material/People";
 import MenuBookIcon from "@mui/icons-material/MenuBook";
@@ -27,6 +27,9 @@ import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import CancelOutlinedIcon from "@mui/icons-material/CancelOutlined";
 import { FoodItem, Recipe } from "../data/types";
 import { hasEnoughInPantry } from "../utils/helpers";
+import { modifyRecipe, AiProvider } from "../utils/openai";
+import CircularProgress from "@mui/material/CircularProgress";
+import Alert from "@mui/material/Alert";
 
 const MODIFICATION_SUGGESTIONS = [
   "Make it healthier",
@@ -38,28 +41,62 @@ const MODIFICATION_SUGGESTIONS = [
 interface RecipeDetailProps {
   recipe: Recipe;
   pantry: FoodItem[];
+  apiKey?: string;
+  aiProvider?: AiProvider;
+  openrouterModel?: string;
   onBack: () => void;
   onToggleFavorite: (id: string) => void;
   onIMadeThis: (recipe: Recipe) => void;
   onAddToShoppingList: (recipe: Recipe) => void;
   onStartCookMode: (recipe: Recipe) => void;
+  onUpdateRecipe?: (updated: Recipe) => void;
   onSnackbar: (message: string) => void;
 }
 
 export default function RecipeDetail({
   recipe,
   pantry,
+  apiKey,
+  aiProvider = "openai",
+  openrouterModel,
   onBack,
   onToggleFavorite,
   onIMadeThis,
   onAddToShoppingList,
   onStartCookMode,
+  onUpdateRecipe,
   onSnackbar,
 }: RecipeDetailProps) {
   const [modifyDialogOpen, setModifyDialogOpen] = useState(false);
   const [modifyText, setModifyText] = useState("");
+  const [modifyLoading, setModifyLoading] = useState(false);
+  const [modifyError, setModifyError] = useState("");
   const [scaledServings, setScaledServings] = useState(recipe.servings);
   const scaleFactor = scaledServings / recipe.servings;
+
+  const handleSubmitModification = async () => {
+    if (!apiKey) {
+      setModifyError(`Add your ${aiProvider === "openrouter" ? "OpenRouter" : "OpenAI"} API key in Settings to use AI modifications.`);
+      return;
+    }
+    if (!onUpdateRecipe) {
+      setModifyError("Recipe updates aren't supported in this view.");
+      return;
+    }
+    setModifyLoading(true);
+    setModifyError("");
+    try {
+      const updated = await modifyRecipe(apiKey, aiProvider, openrouterModel, recipe, modifyText.trim());
+      onUpdateRecipe({ ...recipe, ...updated });
+      onSnackbar(`"${recipe.title}" updated`);
+      setModifyDialogOpen(false);
+      setModifyText("");
+    } catch (err: any) {
+      setModifyError(err?.message || "Failed to modify recipe. Please try again.");
+    } finally {
+      setModifyLoading(false);
+    }
+  };
 
   return (
     <Box>
@@ -73,9 +110,9 @@ export default function RecipeDetail({
         </Typography>
         <IconButton onClick={() => onToggleFavorite(recipe.id)} aria-label={recipe.favorite ? "Remove from favorites" : "Add to favorites"}>
           {recipe.favorite ? (
-            <FavoriteIcon color="error" />
+            <StarIcon color="warning" />
           ) : (
-            <FavoriteBorderIcon />
+            <StarBorderIcon />
           )}
         </IconButton>
       </Stack>
@@ -112,7 +149,7 @@ export default function RecipeDetail({
         <Chip label={recipe.difficulty} variant="outlined" />
         <Chip label={recipe.cuisine} variant="outlined" />
         {recipe.dietary_tags.map((tag) => (
-          <Chip key={tag} label={tag} color="success" size="small" />
+          <Chip key={tag} label={tag} color="success" variant="outlined" />
         ))}
       </Stack>
 
@@ -233,7 +270,7 @@ export default function RecipeDetail({
       {/* Modification dialog */}
       <Dialog
         open={modifyDialogOpen}
-        onClose={() => setModifyDialogOpen(false)}
+        onClose={() => { if (!modifyLoading) { setModifyDialogOpen(false); setModifyError(""); } }}
         maxWidth="sm"
         fullWidth
       >
@@ -250,6 +287,7 @@ export default function RecipeDetail({
                 clickable
                 variant="outlined"
                 onClick={() => setModifyText(suggestion)}
+                disabled={modifyLoading}
               />
             ))}
           </Stack>
@@ -260,22 +298,25 @@ export default function RecipeDetail({
             value={modifyText}
             onChange={(e) => setModifyText(e.target.value)}
             placeholder="e.g., Replace chicken with tofu, reduce sodium..."
+            disabled={modifyLoading}
           />
+          {modifyError && (
+            <Alert severity="error" sx={{ mt: 2 }}>
+              {modifyError}
+            </Alert>
+          )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setModifyDialogOpen(false)}>Cancel</Button>
+          <Button onClick={() => { setModifyDialogOpen(false); setModifyError(""); }} disabled={modifyLoading}>
+            Cancel
+          </Button>
           <Button
             variant="contained"
-            disabled={!modifyText.trim()}
-            onClick={() => {
-              onSnackbar(
-                "AI recipe modification will be available once OpenRouter integration is set up."
-              );
-              setModifyDialogOpen(false);
-              setModifyText("");
-            }}
+            disabled={!modifyText.trim() || modifyLoading}
+            onClick={handleSubmitModification}
+            startIcon={modifyLoading ? <CircularProgress size={16} color="inherit" /> : undefined}
           >
-            Submit
+            {modifyLoading ? "Modifying..." : "Submit"}
           </Button>
         </DialogActions>
       </Dialog>

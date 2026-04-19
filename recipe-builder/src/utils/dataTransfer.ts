@@ -6,7 +6,10 @@ const STORAGE_KEYS = [
   "recipes",
   "mealPlan",
   "darkMode",
+  "ai-provider",
+  "openai-api-key",
   "openrouter-api-key",
+  "openrouter-model",
   "has-seen-help",
 ];
 

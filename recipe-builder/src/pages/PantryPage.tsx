@@ -13,10 +13,13 @@ import {
   ListItemText,
   ListItemSecondaryAction,
   Divider,
+  IconButton,
+  Tooltip,
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import SearchIcon from "@mui/icons-material/Search";
 import InventoryIcon from "@mui/icons-material/Inventory2";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import { FoodItem } from "../data/types";
 import { categorizeFood, CATEGORY_ORDER, CATEGORY_ICONS } from "../utils/foodCategories";
 import FoodItemDialog from "../components/FoodItemDialog";
@@ -53,6 +56,12 @@ export default function PantryPage({ pantry, setPantry, onSnackbar }: PantryPage
     );
     setEditIndex(null);
     onSnackbar(`Updated ${name}`);
+  };
+
+  const handleDeleteAt = (index: number) => {
+    const item = pantry[index];
+    setPantry((prev) => prev.filter((_, i) => i !== index));
+    onSnackbar(`Removed ${item.food} from pantry`);
   };
 
   const handleDelete = () => {
@@ -110,13 +119,14 @@ export default function PantryPage({ pantry, setPantry, onSnackbar }: PantryPage
 
   return (
     <Box>
-      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
-        {pantry.length > 0 && (
-          <Chip label={`${pantry.length} item${pantry.length !== 1 ? "s" : ""}`} size="small" variant="outlined" />
-        )}
+      <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
         <Button variant="contained" startIcon={<AddIcon />} size="small" onClick={() => setAddOpen(true)}>
           Add
         </Button>
+        <Box sx={{ flexGrow: 1 }} />
+        {pantry.length > 0 && (
+          <Chip label={`${pantry.length} item${pantry.length !== 1 ? "s" : ""}`} size="small" variant="outlined" />
+        )}
       </Stack>
 
       {pantry.length > 5 && (
@@ -197,13 +207,25 @@ export default function PantryPage({ pantry, setPantry, onSnackbar }: PantryPage
                           primaryTypographyProps={{ fontWeight: 500, fontSize: "0.95rem" }}
                         />
                         <ListItemSecondaryAction>
-                          <Chip
-                            label={`${item.quantity.value} ${item.quantity.unit}`}
-                            size="small"
-                            variant="outlined"
-                            sx={{ fontWeight: 600, fontSize: "0.8rem" }}
-                            onClick={() => setEditIndex(realIndex)}
-                          />
+                          <Stack direction="row" alignItems="center" spacing={0.5}>
+                            <Chip
+                              label={`${item.quantity.value} ${item.quantity.unit}`}
+                              size="small"
+                              variant="outlined"
+                              sx={{ fontWeight: 600, fontSize: "0.8rem" }}
+                              onClick={() => setEditIndex(realIndex)}
+                            />
+                            <Tooltip title="Remove">
+                              <IconButton
+                                size="small"
+                                color="error"
+                                onClick={(e) => { e.stopPropagation(); handleDeleteAt(realIndex); }}
+                                aria-label={`Remove ${item.food}`}
+                              >
+                                <DeleteOutlineIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          </Stack>
                         </ListItemSecondaryAction>
                       </ListItem>
                     </React.Fragment>

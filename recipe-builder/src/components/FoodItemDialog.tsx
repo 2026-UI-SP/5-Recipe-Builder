@@ -35,8 +35,8 @@ export default function FoodItemDialog({
   title,
   nameLabel,
   initialName = "",
-  initialAmount = "",
-  initialUnit = "pieces",
+  initialAmount = "1",
+  initialUnit = "whole",
   extraActions,
 }: FoodItemDialogProps) {
   const theme = useTheme();

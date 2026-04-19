@@ -27,7 +27,7 @@ import TodayIcon from "@mui/icons-material/Today";
 import NavigateBeforeIcon from "@mui/icons-material/NavigateBefore";
 import NavigateNextIcon from "@mui/icons-material/NavigateNext";
 import { Recipe, FoodItem, MealPlan } from "../data/types";
-import { generateMealPlan } from "../utils/openai";
+import { generateMealPlan, AiProvider } from "../utils/openai";
 import { generateMealPlanPDF } from "../utils/pdfExport";
 import { buildShoppingListFromMealPlan } from "../utils/helpers";
 import MealSlot from "../components/MealSlot";
@@ -60,6 +60,8 @@ interface DashboardPageProps {
   setPantry: React.Dispatch<React.SetStateAction<FoodItem[]>>;
   setShoppingList: React.Dispatch<React.SetStateAction<FoodItem[]>>;
   apiKey: string;
+  aiProvider: AiProvider;
+  openrouterModel: string;
   onStartCookMode: (recipe: Recipe) => void;
   onOpenSettings: () => void;
   onSnackbar: (message: string) => void;
@@ -74,6 +76,8 @@ export default function DashboardPage({
   setPantry,
   setShoppingList,
   apiKey,
+  aiProvider,
+  openrouterModel,
   onStartCookMode,
   onOpenSettings,
   onSnackbar,
@@ -147,7 +151,7 @@ export default function DashboardPage({
   // --- Generation ---
   const startGenerate = () => {
     if (!apiKey) {
-      onSnackbar("Please set your OpenRouter API key first.");
+      onSnackbar(`Please set your ${aiProvider === "openrouter" ? "OpenRouter" : "OpenAI"} API key first.`);
       onOpenSettings();
       return;
     }
@@ -172,6 +176,8 @@ export default function DashboardPage({
     try {
       const result = await generateMealPlan(
         apiKey,
+        aiProvider,
+        openrouterModel,
         {
           days: form.days,
           mealTypes: form.mealTypes,

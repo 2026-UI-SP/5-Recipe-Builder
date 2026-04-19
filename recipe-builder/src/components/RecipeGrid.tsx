@@ -9,7 +9,7 @@ import {
   DialogTitle,
   DialogActions,
 } from "@mui/material";
-import FavoriteIcon from "@mui/icons-material/Favorite";
+import StarIcon from "@mui/icons-material/Star";
 import MenuBookIcon from "@mui/icons-material/MenuBook";
 import { Recipe } from "../data/types";
 import { getCuisineColor } from "../config/theme";
@@ -23,7 +23,6 @@ interface RecipeGridProps {
   onIMadeThis: (recipe: Recipe) => void;
   onAddToShoppingList: (recipe: Recipe) => void;
   onDelete?: (id: string) => void;
-  onEdit?: (recipe: Recipe) => void;
 }
 
 export default function RecipeGrid({
@@ -33,7 +32,6 @@ export default function RecipeGrid({
   onIMadeThis,
   onAddToShoppingList,
   onDelete,
-  onEdit,
 }: RecipeGridProps) {
   const [activeFilter, setActiveFilter] = useState("All");
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; title: string } | null>(null);
@@ -84,7 +82,7 @@ export default function RecipeGrid({
                   label={f.label === "Favorites" ? undefined : f.label}
                   icon={
                     f.label === "Favorites" ? (
-                      <FavoriteIcon fontSize="small" sx={{ color: isActive ? "#fff" : "error.main" }} />
+                      <StarIcon fontSize="small" sx={{ color: isActive ? "#fff" : "warning.main" }} />
                     ) : undefined
                   }
                   clickable
@@ -100,7 +98,7 @@ export default function RecipeGrid({
                         ? { borderColor: cuisineColor, color: cuisineColor }
                         : {}),
                     ...(f.label === "Favorites" && isActive
-                      ? { bgcolor: "error.main", color: "#fff", "&:hover": { bgcolor: "error.dark" } }
+                      ? { bgcolor: "warning.main", color: "#fff", "&:hover": { bgcolor: "warning.dark" } }
                       : {}),
                   }}
                 />
@@ -121,7 +119,6 @@ export default function RecipeGrid({
                     const r = recipes.find((rec) => rec.id === id);
                     setDeleteConfirm({ id, title: r?.title || "this recipe" });
                   } : undefined}
-                  onEdit={onEdit}
                 />
               </Grid>
             ))}
